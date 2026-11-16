@@ -4,7 +4,7 @@
 // 2) 插件契约：client 里 fetch 的 /api/dsh-yushe/* 宿主都注册了；构建产物形态对
 // 3) 宿主端：status 路由只收回环、返回不含秘密
 // 4) 脱敏：plugin/ 与 tools/ 里不出现本机绝对路径、cookie 字段值
-import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, existsSync, writeFileSync } from 'node:fs';
 import { join, dirname, resolve, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -1220,10 +1220,33 @@ section('她在哪儿上工：绑工作区（F-64）');
   fishNow = { id: 'f', workspace: null };
   ok(W2.inUserSession({ agent: ag('B', '/a/old'), scope: {} }), '选「所有工作区」：哪儿都是她');
   const PD = await import(pathToFileURL(join(plugin, 'src/host/pond.js')).href);
-  ok(typeof PD.createPond(mkdtempSync(join(tmpdir(), 'yushe-pondws-'))).setWorkspace === 'function', '鱼塘能存她的工作区');
+  ok(typeof PD.createPond(mkdtempSync(join(tmpdir(), 'yushe-pondws-'))).setWorkspaces === 'function', '鱼塘能存她的工作区（列表）');
+  // F-96 多选：老存档迁移 + 任一处都算 + 合成一个总数
+  {
+    const dir = mkdtempSync(join(tmpdir(), 'yushe-pondmig-'));
+    const base = { id: 'a', name: '老鱼' };
+    writeFileSync(join(dir, 'pond.json'), JSON.stringify({ version: 1, current: 'a', fish: [{ ...base, workspace: { id: 'w1', title: '老项目', path: '/a/old' } }, { ...base, id: 'b', workspace: null }, { ...base, id: 'c' }] }));
+    const P = PD.createPond(dir), fs = P.list().fish;
+    ok(JSON.stringify(fs[0].workspaces) === JSON.stringify([{ id: 'w1', title: '老项目', path: '/a/old' }]) && !('workspace' in fs[0]), '老存档：单个工作区自动变成一项的列表');
+    ok(Array.isArray(fs[1].workspaces) && fs[1].workspaces.length === 0 && !('workspace' in fs[1]) && !('workspaces' in fs[2]), '老存档：选过「所有工作区」(null) → 空列表；没选过的不动（照样 = 所有）');
+    const saved = P.setWorkspaces('a', [{ id: 'w1', title: '老', path: '/a/old' }, { id: 'w2', title: '新', path: '/a/new' }, { id: 'w1', title: '重复', path: '/a/old' }, { id: '', path: '/bad' }]);
+    ok(saved.workspaces.map((w) => w.id).join() === 'w1,w2', '存多个工作区：去重、坏条目丢掉');
+    ok(JSON.parse(readFileSync(join(dir, 'pond.json'), 'utf8')).fish[0].workspaces.length === 2, '多选落盘');
+    ok(P.setWorkspaces('a', []).workspaces.length === 0, '清空 = 所有工作区');
+  }
+  ok(WSP.workspacesOf({ workspace: { id: 'w', path: '/p' } }).length === 1 && WSP.workspacesOf({ workspaces: [] }).length === 0 && WSP.workspacesOf(null).length === 0, 'workspacesOf：新老存档都读得出来');
+  ok(WSP.inWorkspaces('/a/new/x', [{ path: '/a/old' }, { path: '/a/new' }]) && !WSP.inWorkspaces('/a/other', [{ path: '/a/old' }, { path: '/a/new' }]) && WSP.inWorkspaces('/z', []), '多选判断：在任一处都算，都不在不算，空 = 都算');
+  ok(WSP.byRecency([{ id: 'w1' }, { id: 'gone' }, { id: 'w2' }], WSX.list()).map((w) => w.id).join() === 'w2,w1,gone', '勾中的按最近用过排（「找她干活」去第一个）');
+  ok(JSON.stringify(WSP.idsOf({ workspaceIds: ['a', 'a', '', 3, 'b'] })) === '["a","b"]' && JSON.stringify(WSP.idsOf({ workspaceId: 'x' })) === '["x"]' && JSON.stringify(WSP.idsOf({ workspaceId: null })) === '[]' && WSP.idsOf({}) === null, '请求：新写法列表、老写法单个 / null 都收');
+  {
+    let nm = 0;
+    const WM = WS2.createWorkSessions({ ctx: { on: () => {} }, pond: { current: () => ({ id: 'f', workspaces: [{ id: 'w1', path: '/a/old' }, { id: 'w2', path: '/a/new' }] }) }, life: { bumpWork: () => { nm += 1; } } });
+    WM.onClaimed({ agent: ag('M1', '/a/old'), message: typed }); WM.onClaimed({ agent: ag('M2', '/a/new'), message: typed }); WM.onClaimed({ agent: ag('M3', '/a/other'), message: typed });
+    ok(nm === 2 && WM.inUserSession({ agent: ag('M1', '/a/old'), scope: {} }) && WM.inUserSession({ agent: ag('M2', '/a/new'), scope: {} }) && !WM.inUserSession({ agent: ag('M3', '/a/other'), scope: {} }), '勾两处：两处的话都算她的活（合成一个总数）、都有人设；别处没有');
+  }
   const g = read('src/game/main.js'), ink = read('src/game/story/onboarding.ink'), cl = read('src/client/index.js'), gr = read('src/host/game-routes.js');
-  ok(ink.includes('#action:workspace') && g.includes('ACTIONS.workspace =') && g.includes('workspaceId: S.workspaceId'), '领养流程里挑工作区，领养时带上');
-  ok(gr.includes('workspaces.resolve(body.spec.workspaceId)'), '领养时宿主再核一遍工作区（只认 DSH 里真有的）');
+  ok(ink.includes('#action:workspace') && g.includes('ACTIONS.workspace =') && g.includes('workspaceIds: S.workspaceIds') && g.includes('sel.has(id)'), '领养流程里勾工作区（能多选），领养时带上');
+  ok(gr.includes('idsOf(body.spec)') && gr.includes('workspaces.resolve(id)'), '领养时宿主再核一遍工作区（只认 DSH 里真有的）');
   ok(cl.includes('ws.startSession(wsId'), '「找她干活」在她的工作区开新对话');
 }
 

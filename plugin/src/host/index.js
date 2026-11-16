@@ -41,12 +41,12 @@ import { createMemory, registerMemoryRoutes } from './memory.js';
 import { createSeenLog } from './seen-log.js'; // F-86：见闻流水账
 import { createOfficial, registerOfficialRoutes } from './official.js';
 import { createWorkSessions } from './work-sessions.js';
-import { createWorkspaces, registerWorkspaceRoutes } from './workspaces.js';
+import { createWorkspaces, registerWorkspaceRoutes, workspacesOf } from './workspaces.js';
 
 export const name = 'dsh-plugin-yushe'; // 包名；存档目录、路由前缀仍叫 dsh-yushe（老存档不丢）
 // 人设注入要用 systemPrompt（所有带 dsh-base 的 profile 都有）
 export const inject = ['systemPrompt'];
-export const VERSION = '0.52.0';
+export const VERSION = '0.53.0';
 export const STATUS_PATH = '/api/dsh-yushe/status';
 export const SAY_PATH = '/api/dsh-yushe/probe/say';
 export const ROAM_PATH = '/api/dsh-yushe/probe/roam';
@@ -103,7 +103,7 @@ export function withFish(status, pond, life, wallet) {
   const all = pond?.list?.().fish || [];
   let now = null;
   try { if (f && life) { const st = life.state(f); const s = snapshot(st); now = { where: s.where, whereText: s.whereText, moodIcon: s.moodIcon, moodWord: s.moodWord, energy: s.energy, ...life.activity(f, st, wallet?.busy) }; } } catch { now = null; }
-  return { ...status, fish: f ? { id: f.id, name: f.name, proto: f.proto, rarity: f.rarity, personality: f.personality, parentCall: f.parentCall, workspace: f.workspace ? { title: f.workspace.title } : null, now } : null, lastFish: all.length ? all[all.length - 1].id : null, pondSize: all.length, clock: { now: nowDate().toISOString(), skewed: clockSkewed() }, wallet: wallet?.view?.() ?? null };
+  return { ...status, fish: f ? { id: f.id, name: f.name, proto: f.proto, rarity: f.rarity, personality: f.personality, parentCall: f.parentCall, workspaces: workspacesOf(f).map((w) => ({ title: w.title })), now } : null, lastFish: all.length ? all[all.length - 1].id : null, pondSize: all.length, clock: { now: nowDate().toISOString(), skewed: clockSkewed() }, wallet: wallet?.view?.() ?? null };
 }
 
 export function apply(ctx) {

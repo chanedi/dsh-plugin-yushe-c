@@ -21,7 +21,7 @@ const cleanLine = (s, max) => String(s ?? '').replace(/[\u0000-\u001f\u007f`#*>\
 export function createPond(dir) {
   const file = join(dir, 'pond.json');
   const read = () => {
-    try { const j = JSON.parse(readFileSync(file, 'utf8')); if (j && Array.isArray(j.fish)) return j; } catch { /* 没有或坏了 */ }
+    try { const j = JSON.parse(readFileSync(file, 'utf8')); if (j && Array.isArray(j.fish)) return migrate(j); } catch { /* 没有或坏了 */ }
     return { version: 1, current: null, fish: [] };
   };
   const write = (data) => {
@@ -49,11 +49,13 @@ export function createPond(dir) {
       write(cache);
       return cache.fish.find((f) => f.id === id);
     },
-    /** 她在哪个工作区上工（F-62）：{id,title,path} 或 null（所有工作区）。 */
-    setWorkspace(id, ws) {
+    /** 她在哪些工作区上工（F-64 → F-96）：[{id,title,path}]，空 = 所有工作区。按 id 去重。 */
+    setWorkspaces(id, list) {
       if (!cache.fish.some((f) => f.id === id)) throw new Error('没有这条鱼');
-      const v = ws && ws.id && ws.path ? { id: String(ws.id), title: String(ws.title || '').slice(0, 40), path: String(ws.path) } : null;
-      cache = { ...cache, fish: cache.fish.map((f) => (f.id === id ? { ...f, workspace: v } : f)) };
+      const seen = new Set();
+      const v = (Array.isArray(list) ? list : []).filter((ws) => ws && ws.id && ws.path && !seen.has(String(ws.id)) && seen.add(String(ws.id)))
+        .slice(0, 20).map((ws) => ({ id: String(ws.id), title: String(ws.title || '').slice(0, 40), path: String(ws.path) }));
+      cache = { ...cache, fish: cache.fish.map((f) => { if (f.id !== id) return f; const { workspace: _old, ...rest } = f; return { ...rest, workspaces: v }; }) };
       write(cache);
       return cache.fish.find((f) => f.id === id);
     },
@@ -65,6 +67,16 @@ export function createPond(dir) {
       return fish;
     },
   };
+}
+
+/** 老存档迁移（F-96）：单个 workspace（或 null）→ workspaces 列表；只在内存里改，下次写盘时落下。 */
+export function migrate(data) {
+  if (!data.fish.some((f) => f && 'workspace' in f)) return data;
+  return { ...data, fish: data.fish.map((f) => {
+    if (!f || !('workspace' in f)) return f;
+    const { workspace, ...rest } = f;
+    return { ...rest, workspaces: Array.isArray(f.workspaces) ? f.workspaces : (workspace?.id && workspace.path ? [workspace] : []) };
+  }) };
 }
 
 export function buildFish(spec, { firstEgg = false } = {}) {

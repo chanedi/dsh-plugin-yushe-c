@@ -7,6 +7,7 @@ import { homeOf } from '../../../shared/homes.js';
 import { outgoingness } from '../../../shared/trip.js';
 import { planNow } from '../../../shared/plan.js';
 import { defineTool, NO_FISH } from '../define.js';
+import { workspacesOf } from '../../workspaces.js';
 
 export default defineTool({
   name: 'yushe_status',
@@ -19,7 +20,7 @@ export default defineTool({
       today: life.eventsOf(s, dayOf()).slice(-10).map((e) => e.text), allowance: w.unlimited ? '不限' : `还剩 ${tokensText(w.left)} token（今天花了 ${tokensText(w.spentToday)}）`,
       trip: s.trip ? { note: s.trip.note, back: s.trip.returnAt ? new Date(s.trip.returnAt).toTimeString().slice(0, 5) : '还在逛' } : null, habits: describeHabits(habits.get()),
       plan: (s.plans?.[dayOf()]?.rows || []).filter((r) => !r.fixed).map((r) => `${r.from}–${r.to} ${r.what}`), planNow: planNow(s.plans?.[dayOf()]?.rows, nowDate())?.what || null,
-      workspace: f.workspace ? `${f.workspace.title}（${f.workspace.path}）：只在这个工作区上工` : '所有工作区',
+      workspace: (() => { const ws = workspacesOf(f); return ws.length ? `${ws.map((w) => `${w.title}（${w.path}）`).join('、')}：只在${ws.length > 1 ? '这几个' : '这个'}工作区上工` : '所有工作区'; })(),
       personality: s.growth?.type || f.personality, outgoing: (() => { const o = outgoingness(s.growth?.pts || f.pts, s.growth?.lean); return `${o.label}${o.why.length ? `（${o.why.join('、')}）` : ''}`; })() };
   },
 });

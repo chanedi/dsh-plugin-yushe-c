@@ -11,6 +11,7 @@
  */
 import { nowMs } from './clock.js';
 import { readJsonBody } from './game-routes.js';
+import { workspacesOf } from './workspaces.js';
 import { snapshot, lifeSection, dayOf } from './life-engine.js';
 import { SIG_INSTRUCTION, sigFilter, parseSignals, sigEvents } from '../shared/mood.js';
 import { isUndoNote } from '../shared/memory.js'; // 五期-3：爸妈说「不用记」的判断（规则在 shared，房间路由只接线）
@@ -167,7 +168,7 @@ export function registerLifeRoutes({ ctx, scope, pond, life, wallet, letters, ga
     const today = dayOf();
     writeJson(res, 200, {
       ok: true,
-      fish: { id: f.id, name: f.name, proto: f.proto, rarity: f.rarity, parentCall: f.parentCall, working: pond.current()?.id === f.id, workspace: f.workspace || null },
+      fish: { id: f.id, name: f.name, proto: f.proto, rarity: f.rarity, parentCall: f.parentCall, working: pond.current()?.id === f.id, workspaces: workspacesOf(f) },
       ...snapshot(s), workToday: life.workToday(s, f), ...life.activity(f, s, wallet.busy), wallet: wallet.view(),
       growth: s.growth ? growthView(s.growth, f, { ageDays: Math.max(0, Math.floor((nowMs() - (s.bornAt || nowMs())) / 86400e3)) }) : null,
       bagCount: Object.keys(s.bag?.items || {}).length,

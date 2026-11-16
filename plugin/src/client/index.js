@@ -55,6 +55,9 @@ const FishGlyph = ({ size = 16 } = {}) => h('svg', { width: size, height: size, 
   h('path', { d: 'M13.5 8c-1.6-2.6-5.6-3.2-8 0l-3-2.2.9 2.2-.9 2.2 3-2.2c2.4 3.2 6.4 2.6 8 0z', strokeLinejoin: 'round' }),
   h('circle', { cx: 10.6, cy: 7.4, r: 0.6, fill: 'currentColor' }));
 
+/** 她在哪几处上工（F-96）：「A」「B」，超过 2 个写「A」等 N 处；所有工作区 → ''。 */
+const wsLine = (f) => { const ws = Array.isArray(f?.workspaces) ? f.workspaces : (f?.workspace ? [f.workspace] : []); return ws.length > 2 ? `「${ws[0].title}」等 ${ws.length} 处` : ws.map((w) => `「${w.title}」`).join(''); };
+
 /** 输入框上方的鱼小条：只在鱼社的鱼正在上工时出现；点一下打开她的房间。 */
 function FishDock() {
   const [st, setSt] = React.useState(null);
@@ -72,13 +75,13 @@ function FishDock() {
   const sleeping = n.where === 'sleep';
   return h('button', {
     type: 'button', 'data-dsh-yushe': 'dock', onClick: () => gameStore.set(true),
-    title: `${f.name}（${f.rarity} · ${f.personality}）${f.workspace ? `在「${f.workspace.title}」里替你干活` : '正在替你干活'}，点我去鱼社看她`,
+    title: `${f.name}（${f.rarity} · ${f.personality}）${wsLine(f) ? `在${wsLine(f)}里替你干活` : '正在替你干活'}，点我去鱼社看她`,
     style: { display: 'inline-flex', alignItems: 'center', gap: 6, margin: '0 0 6px', padding: '2px 10px 2px 3px', borderRadius: 999, border: '1px solid var(--dsw-alias-border-default, #ddd)', background: 'var(--dsw-alias-bg-default, #fff)', cursor: 'pointer', fontSize: 12, color: 'var(--dsw-alias-text-default, inherit)' },
   },
     h('img', { src: `/api/dsh-yushe/game/assets/head-${f.proto}.webp`, alt: '', style: { width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' } }),
     h('b', { style: { fontWeight: 600 } }, f.name),
     // 这一条在所有对话的输入框上都会出现（插槽不告诉我们当前对话在哪个工作区），所以写清楚她在哪儿上工（F-64）
-    h('span', { style: { opacity: 0.75 } }, Ic(sleeping ? 'moon' : 'work', 14), f.workspace ? `${sleeping ? '睡着了，' : ''}在「${f.workspace.title}」上工` : (sleeping ? '睡着了也在上工' : '上工中')),
+    h('span', { style: { opacity: 0.75 } }, Ic(sleeping ? 'moon' : 'work', 14), wsLine(f) ? `${sleeping ? '睡着了，' : ''}在${wsLine(f)}上工` : (sleeping ? '睡着了也在上工' : '上工中')),
     n.moodIcon && h('span', { title: `心情${n.moodWord} · 精力 ${n.energy}` }, Ic(n.moodIcon, 16)),
   );
 }

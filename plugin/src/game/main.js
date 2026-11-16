@@ -257,7 +257,7 @@ function spec() {
     seed: S.seed, proto: c.proto, cast: S.picked, minRarity: S.picked === 0 && S.firstEgg ? 'SR' : null,
     pts: S.pts, salts: S.salts, overrides: S.over, parentCall: S.call,
     name: S.name || PROTOS[c.proto].defaultName, self: S.self, tics: S.tics, ban: S.ban,
-    talentIds: [t.main[S.main[S.picked]].id, t.sub.id], firstWords: S.firstWords, home: S.home || 'cyberroom', workspaceId: S.workspaceId || null,
+    talentIds: [t.main[S.main[S.picked]].id, t.sub.id], firstWords: S.firstWords, home: S.home || 'cyberroom', workspaceIds: S.workspaceIds || [],
   };
 }
 function previewPersona() {
@@ -365,26 +365,32 @@ function pickHome(mode = 'birth', current = 'cyberroom') {
     $('homesCancel').onclick = () => { $('homeGrid').onclick = null; scene.setBackdrop(current); setScreen(back); resolve(null); };
   });
 }
-/* ================= 她在哪儿上工（F-64）：挑一个 DSH 工作区；null = 所有工作区 ================= */
-// 返回 { id, title } 或 null（所有工作区）；mode='change' 时取消返回 undefined
-function pickWorkspace(mode = 'birth', currentId = undefined) {
+/* ================= 她在哪儿上工（F-64 → F-96 多选）：勾几个 DSH 工作区；[] = 所有工作区 ================= */
+// 工作区名字连成一句：「A」「B」；超过 3 个只写前 3 个 + 「等 N 处」
+const wsNames = (ws) => ws.slice(0, 3).map((w) => `「${w.title}」`).join('') + (ws.length > 3 ? `等 ${ws.length} 处` : '');
+// 返回 [{ id, title }]（[] = 所有工作区）；mode='change' 时取消返回 undefined
+function pickWorkspace(mode = 'birth', currentIds = undefined) {
   return new Promise(async (resolve) => {
     const back = document.body.dataset.screen;
     let r; try { r = await api('/workspaces'); } catch { r = { list: [] }; }
     const list = r.list || [];
-    if (!list.length && mode === 'birth') { resolve(null); return; } // 拿不到工作区（老宿主）：所有工作区都算
-    let sel = currentId !== undefined ? currentId : (list[0]?.id ?? null);
+    if (!list.length && mode === 'birth') { resolve([]); return; } // 拿不到工作区（老宿主）：所有工作区都算
+    const sel = new Set(currentIds !== undefined ? currentIds : (list[0] ? [list[0].id] : []));
     setScreen('work');
     $('workTitle').textContent = mode === 'birth' ? '她在哪儿上工' : '换个地方上工';
     $('workCancel').hidden = mode === 'birth';
-    const draw = () => { $('wsGrid').innerHTML = list.map((w) => `<div class="wscard ${w.id === sel ? 'on' : ''}" data-ws="${esc(w.id)}"><b>${esc(w.title)}</b><small>${esc(w.path)}</small></div>`).join('') + `<div class="wscard all ${sel === null ? 'on' : ''}" data-ws=""><b>所有工作区</b><small>在哪个工作区她都在（以后能换）</small></div>`; };
+    const draw = () => {
+      $('wsGrid').innerHTML = list.map((w) => `<div class="wscard ${sel.has(w.id) ? 'on' : ''}" data-ws="${esc(w.id)}"><b>${esc(w.title)}</b><small>${esc(w.path)}</small></div>`).join('') + `<div class="wscard all ${sel.size === 0 ? 'on' : ''}" data-ws=""><b>所有工作区</b><small>在哪个工作区她都在（以后能换）</small></div>`;
+      $('workOk').textContent = sel.size > 1 ? `就在这 ${sel.size} 处上工！` : '就在这里上工！';
+    };
     draw();
-    $('wsGrid').onclick = (e) => { const c = e.target.closest('[data-ws]'); if (!c) return; sel = c.dataset.ws || null; draw(); };
-    $('workOk').onclick = () => { $('wsGrid').onclick = null; const w = list.find((x) => x.id === sel); resolve(w ? { id: w.id, title: w.title } : null); };
+    // 点工作区卡片 = 勾上 / 取消（可以勾好几个）；点「所有工作区」= 清空
+    $('wsGrid').onclick = (e) => { const c = e.target.closest('[data-ws]'); if (!c) return; const id = c.dataset.ws; if (!id) sel.clear(); else if (sel.has(id)) sel.delete(id); else sel.add(id); draw(); };
+    $('workOk').onclick = () => { $('wsGrid').onclick = null; resolve(list.filter((x) => sel.has(x.id)).map((w) => ({ id: w.id, title: w.title }))); };
     $('workCancel').onclick = () => { $('wsGrid').onclick = null; setScreen(back); resolve(undefined); };
   });
 }
-ACTIONS.workspace = async () => { const w = await pickWorkspace('birth'); S.workspaceId = w?.id || null; S.workspaceTitle = w?.title || null; setScreen('intro'); };
+ACTIONS.workspace = async () => { const ws = await pickWorkspace('birth'); S.workspaceIds = ws.map((w) => w.id); S.workspaceTitles = ws.map((w) => w.title); setScreen('intro'); };
 ACTIONS.home = async () => { S.home = await pickHome('birth', S.home || 'cyberroom'); setScreen('intro'); scene.setBackdrop(pondScene()); };
 
 /* ================= 开局设置（F-38）：B站扫码 + 生图 API，都能以后再说 ================= */
@@ -490,19 +496,20 @@ $('reportSend').addEventListener('click', async () => {
 });
 $('cfgFollow').addEventListener('click', async () => { $('cfgFollow').disabled = true; const r = await api('/bili/official', { follow: true }).catch((e) => ({ ok: false, error: e.message })); $('cfgFollow').disabled = false; toast(r.ok ? '关注好了' : `没关注上：${r.error || ''}`); loadBiliCfg(); });
 $('cfgBtn').addEventListener('click', loadBiliCfg);
-// 设置：她在哪儿上工（F-64）
+// 设置：她在哪儿上工（F-64 → F-96 多选）
 async function loadWorkCfg() {
   let r; try { r = await api('/workspaces'); } catch { return; }
-  $('cfgWsSub').textContent = r.current ? `「${r.current.title}」：这里的对话都是她在帮你，别的工作区里她不出现` : '所有工作区：在哪儿跟 DSH 说话都是她';
-  $('cfgWsSub').title = r.current?.path || '';
-  $('cfgWs').dataset.cur = r.current?.id || '';
+  const cur = Array.isArray(r.current) ? r.current : (r.current ? [r.current] : []);
+  $('cfgWsSub').textContent = cur.length ? `${wsNames(cur)}：这${cur.length > 1 ? '几处' : '里'}的对话都是她在帮你，别的工作区里她不出现` : '所有工作区：在哪儿跟 DSH 说话都是她';
+  $('cfgWsSub').title = cur.map((w) => w.path).join('\n');
+  $('cfgWs').dataset.cur = cur.map((w) => w.id).join('\n');
 }
 $('cfgBtn').addEventListener('click', loadWorkCfg);
 $('cfgWs').addEventListener('click', async () => {
   $('cfg').classList.remove('on');
   const back = document.body.dataset.screen;
-  const w = await pickWorkspace('change', $('cfgWs').dataset.cur || null);
-  if (w !== undefined) { const r = await api('/workspaces', { workspaceId: w ? w.id : null }); toast(r.ok ? (w ? `好，她以后在「${w.title}」上工` : '好，她在所有工作区都上工') : `没换成：${r.error || ''}`); }
+  const ws = await pickWorkspace('change', ($('cfgWs').dataset.cur || '').split('\n').filter(Boolean));
+  if (ws !== undefined) { const r = await api('/workspaces', { workspaceIds: ws.map((w) => w.id) }); toast(r.ok ? (ws.length ? `好，她以后在${wsNames(ws)}上工` : '好，她在所有工作区都上工') : `没换成：${r.error || ''}`); }
   await refreshPond(); setScreen(back); if (back === 'home') refreshLife();
   $('cfg').classList.add('on'); loadWorkCfg();
 });
@@ -795,7 +802,7 @@ async function openCfg() {
   await refreshPond();
   const cur = POND.current, last = homeFish();
   $('cfgWorkTitle').textContent = cur ? `${cur.name} 正在上工` : '现在没有鱼在上工';
-  $('cfgWorkSub').textContent = cur ? `${cur.workspace ? `在「${cur.workspace.title}」里` : '在所有工作区'}跟 DSH 说话就是她在回答，叫你「${cur.parentCall}」` : 'DSH 里不会出现鱼社的人设';
+  $('cfgWorkSub').textContent = cur ? `${cur.workspaces?.length ? `在${wsNames(cur.workspaces)}里` : '在所有工作区'}跟 DSH 说话就是她在回答，叫你「${cur.parentCall}」` : 'DSH 里不会出现鱼社的人设';
   $('cfgWork').textContent = cur ? '让她歇着' : (last ? `叫 ${last.name} 回来上工` : '先去领养一条');
   $('cfgWork').dataset.act = cur ? 'rest' : (last ? 'work' : 'adopt');
   const pref = pondPref();
@@ -905,7 +912,12 @@ document.querySelector('.quick').addEventListener('click', async (e) => {
   const b = e.target.closest('.qa'); if (!b) return;
   const f = homeFish(); if (!f) return;
   const act = b.dataset.act;
-  if (act === 'work') { window.parent?.postMessage({ type: 'dsh-yushe:work', name: f.name, workspaceId: f.workspace?.id || null }, location.origin); bubbleSay(f.workspace ? `好！${f.parentCall}，我们去「${f.workspace.title}」里干活～` : `好！${f.parentCall}，我们去 DSH 里干活～`); return; }
+  if (act === 'work') {
+    // F-96：勾了好几处 → 去最近用过的那个（/workspaces 的 current 按最近用过排）
+    let ws = f.workspaces || []; try { const r = await api('/workspaces'); if (Array.isArray(r.current)) ws = r.current; } catch { /* 拿不到就按存的顺序 */ }
+    const w = ws[0] || null;
+    window.parent?.postMessage({ type: 'dsh-yushe:work', name: f.name, workspaceId: w?.id || null }, location.origin); bubbleSay(w ? `好！${f.parentCall}，我们去「${w.title}」里干活～` : `好！${f.parentCall}，我们去 DSH 里干活～`); return;
+  }
   b.disabled = true;
   try {
     if (act === 'news') await roomStream('/news', {});

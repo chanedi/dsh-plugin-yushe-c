@@ -12,6 +12,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildFish } from './pond.js';
+import { workspacesOf, idsOf } from './workspaces.js';
 import { hostSay, logProbe } from './probe.js';
 import { nowDate } from './clock.js';
 // 提示词本体在 src/prompts/first.md、greet.md（F-80 搬家-2b）：这里只准备变量再 fill
@@ -62,7 +63,7 @@ export function resolveGameFile(urlPath, root = gameDir()) {
   return full;
 }
 
-const summary = (f) => f && { id: f.id, name: f.name, proto: f.proto, rarity: f.rarity, personality: f.personality, parentCall: f.parentCall, firstWords: f.firstWords, story: f.story, pts: f.pts, cast: f.cast, seed: f.seed, createdAt: f.createdAt, home: f.home || 'cyberroom', workspace: f.workspace || null };
+const summary = (f) => f && { id: f.id, name: f.name, proto: f.proto, rarity: f.rarity, personality: f.personality, parentCall: f.parentCall, firstWords: f.firstWords, story: f.story, pts: f.pts, cast: f.cast, seed: f.seed, createdAt: f.createdAt, home: f.home || 'cyberroom', workspaces: workspacesOf(f) };
 
 export function registerGameRoutes({ ctx, scope, pond, storage, isLoopbackRequest, writeJson, life, wallet, workspaces = null }) {
   const guard = (request, response, method) => {
@@ -84,9 +85,10 @@ export function registerGameRoutes({ ctx, scope, pond, storage, isLoopbackReques
     if (!body) return writeJson(res, 400, { ok: false, error: '请求格式不对' });
     try {
       let fish = pond.adopt(body.spec);
-      // 领养时挑的工作区（F-64）：只认 DSH 里真有的；没挑 / 挑「所有工作区」就是 null
-      const ws = body.spec?.workspaceId && workspaces ? workspaces.resolve(body.spec.workspaceId) : null;
-      if (ws) fish = pond.setWorkspace(fish.id, ws);
+      // 领养时勾的工作区（F-64 / F-96 多选）：只认 DSH 里真有的；没勾 / 挑「所有工作区」就是 []
+      const ids = idsOf(body.spec) || [];
+      const ws = workspaces ? ids.map((id) => workspaces.resolve(id)).filter(Boolean) : [];
+      if (ws.length) fish = pond.setWorkspaces(fish.id, ws);
       writeJson(res, 200, { ok: true, fish: summary(fish), personaChars: fish.personaText.length });
     } catch (e) { writeJson(res, 200, { ok: false, error: String(e?.message || e) }); }
   }, 'adopt route');

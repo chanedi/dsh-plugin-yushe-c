@@ -11,10 +11,10 @@
  *   - 子任务 / 定时任务 / 压缩 / 别的插件塞的消息：都不是这个样子 → 不算，也不记。
  *     注意只看 kind 不够：任务板、做 PPT 的审稿子任务发的就是光秃秃的 { kind: 'user' }
  * 人设和近况两段只在记下来的会话里出现（`inUserSession(assembleContext)`）。
- * 绑了工作区（F-64）：只有她那个工作区里的会话才算、才放人设；没绑（null）就所有工作区都算。
+ * 绑了工作区（F-64 / F-96 多选）：只有她勾的那几个工作区里的会话才算、才放人设（合成一个总数）；没勾就所有工作区都算。
  * 宿主太旧、拼装时不带 agent 的话，退回老办法（照样注入），免得她整个消失。
  */
-import { inWorkspace, cwdOfAgent } from './workspaces.js';
+import { inWorkspaces, workspacesOf, cwdOfAgent } from './workspaces.js';
 import { nowMs } from './clock.js';
 
 const filled = (v) => typeof v === 'string' && v.length > 0;
@@ -52,7 +52,7 @@ export function createWorkSessions({ ctx, pond, life, log }) {
       if (!isTypedByUser(payload?.message)) return false;
       track(payload.agent);
       const f = pond.current();
-      if (!f || !inWorkspace(cwdOfAgent(payload.agent), f.workspace)) return false; // 别的工作区的对话不算她的活
+      if (!f || !inWorkspaces(cwdOfAgent(payload.agent), workspacesOf(f))) return false; // 别的工作区的对话不算她的活
       if (payload.agent?.id) rememberTyped(payload.agent.id, payload.message); // 和 bumpWork 同一道关：工作区不对的也不记这一句
       try { life.bumpWork(f); } catch { /* 记账失败不影响对话 */ }
       return true;
@@ -62,7 +62,7 @@ export function createWorkSessions({ ctx, pond, life, log }) {
       const agent = context?.agent;
       if (!agent) return !context?.scope; // 老宿主：拼装不带 agent → 照旧注入；带了 scope 却没有 agent 的（别的东西）不注入
       if (!userSessions.has(String(agent.id))) return false;
-      return inWorkspace(cwdOfAgent(agent), pond.current()?.workspace || null);
+      return inWorkspaces(cwdOfAgent(agent), workspacesOf(pond.current()));
     },
     /** 五期-1：这个会话里爸妈最新亲手打的一句（没有 / 不是这个会话 → null）。子任务、任务板、别的插件塞的话不会在这里。 */
     lastTyped(agentId) {

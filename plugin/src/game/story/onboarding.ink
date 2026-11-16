@@ -27,7 +27,7 @@ VAR returning = false
 - 本鱼：{call}！好的好的，记下来啦。 #pose:sign
 本鱼：宝宝出生前，先给她挑一个温暖的家吧！ #pose:point #action:home
 本鱼：好温馨！宝宝一定会喜欢的。 #pose:proud
-本鱼：再挑一个让她上工的地方吧：以后在这个工作区里跟 DSH 说的话，都是她在帮你干活。 #pose:point #action:workspace
+本鱼：再挑让她上工的地方吧，可以挑好几个：以后在这些工作区里跟 DSH 说的话，都是她在帮你干活。 #pose:point #action:workspace
 本鱼：那我们去撒一把谷子，看看哪颗卵在等你～ #pose:point #action:cast
 -> END
 
