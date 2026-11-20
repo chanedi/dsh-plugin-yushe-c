@@ -303,8 +303,20 @@ body[data-screen="home"] #homeActs{display:flex}
 #cfg{position:absolute;inset:0;z-index:20;display:none;align-items:center;justify-content:center;background:rgba(14,40,70,.5);pointer-events:auto}
 #cfg.on{display:flex}
 /* 面板本身不裁切（丝带和关闭按钮伸出顶边），只让里面的内容滚动 */
-#cfg .panel{padding:44px 14px 18px 26px;width:min(640px,calc(100% - 32px));max-height:calc(100vh - 110px);display:flex;flex-direction:column;overflow:visible;margin-top:30px}
-#cfg .cfgbody{flex:1;min-height:0;overflow:auto;padding:4px 12px 6px 0}
+#cfg .panel{padding:44px 14px 18px 26px;width:min(880px,calc(100% - 32px));max-height:calc(100vh - 110px);display:flex;flex-direction:column;overflow:visible;margin-top:30px}
+/* 配置页-1（F-97）：左侧五个 tab，右边当前页；窄屏 tab 在顶上一排横着滑 */
+#cfg .cfgwrap{flex:1;min-height:0;display:flex;gap:14px;margin-top:2px}
+#cfg .cfgtabs{display:flex;flex-direction:column;gap:8px;flex:0 0 140px}
+.cfgtab{border:3px solid var(--ol);background:#fff;border-radius:12px;box-shadow:0 3px 0 var(--ol);padding:9px 12px;font:14px var(--game);cursor:pointer;text-align:left;color:inherit}
+.cfgtab.on{background:#fff2c2}
+#cfg .cfgbody{flex:1;min-width:0;overflow:auto;padding:4px 12px 6px 0}
+.cfgsum{font:12.5px/1.6 var(--body);color:var(--mute);padding:2px 2px 8px}
+.hrow .hlab{display:flex;flex-direction:column;gap:2px;min-width:0}
+.hrow .hlab small{font:12px/1.5 var(--body);color:var(--mute);font-weight:400}
+.hrow .usage{font:11px var(--game);font-style:normal;color:#fff;background:#8a94a6;border-radius:6px;padding:1px 6px;align-self:flex-start}
+.cfgfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:2px;padding:10px 14px;background:#fff;border:3px dashed var(--ol);border-radius:14px}
+.cfgfoot small{font:12px/1.5 var(--body);color:var(--mute)}
+@media (max-width:640px){#cfg .panel{width:calc(100% - 24px);margin-top:12px}#cfg .cfgwrap{flex-direction:column;gap:10px}#cfg .cfgtabs{flex:0 0 auto;flex-direction:row;overflow-x:auto;padding-bottom:2px}.cfgtab{white-space:nowrap}}
 #cfg .x{position:absolute;top:-18px;right:-18px}
 .cfgrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:#fff;border:3px solid var(--ol);border-radius:14px;box-shadow:0 3px 0 var(--ol);margin-bottom:10px}
 .cfgrow b{font:17px var(--game)} .cfgrow small{display:block;font:12.5px/1.5 var(--body);color:var(--mute)}
@@ -737,31 +749,43 @@ body[data-screen="home"] #homeActs{display:flex}
     </div>
   </section>
 
-  <div id="cfg"><div class="panel"><div class="ribbon">鱼社设置</div><button class="gb pink sm x" id="cfgX"><svg class="xg" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/></svg></button><div class="cfgbody">
-    <div class="cfgrow"><div><b id="cfgWorkTitle">上工</b><small id="cfgWorkSub"></small></div><button class="gb sm" id="cfgWork"></button></div>
-    <div class="cfgrow" style="flex-direction:column;align-items:stretch">
-      <div><b><img class="ic" src="./assets/icons/coin.webp" alt=""> 零花钱</b><small>她自己聊天、写日记、念新闻、出门都要花 token，花光了就歇着（不调模型）。她在 DSH 里替你干活不算她的钱。</small></div>
-      <div class="chips" id="walletModes"><button class="chip" data-mode="jar">存钱罐</button><button class="chip" data-mode="daily">每天零花钱</button><button class="chip" data-mode="free">不限</button></div>
-      <div class="walletrow" id="walletJarRow"><span id="walletLeft"></span><button class="gb sm" data-top="1000000">放 100 万</button><button class="gb sm" data-top="5000000">放 500 万</button></div>
-      <div class="walletrow" id="walletDailyRow" hidden><span>每天给</span><input id="walletDaily" type="number" min="0" step="10000"><span>token</span><button class="gb sm" id="walletDailySave">保存</button></div>
-      <small id="walletSpent"></small>
+  <div id="cfg"><div class="panel"><div class="ribbon">鱼社设置</div><button class="gb pink sm x" id="cfgX"><svg class="xg" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/></svg></button>
+  <div class="cfgwrap">
+    <div class="cfgtabs" id="cfgTabs"><button class="cfgtab on" data-tab="home">鱼和家</button><button class="cfgtab" data-tab="out">出门</button><button class="cfgtab" data-tab="read">刷 B站</button><button class="cfgtab" data-tab="talk">互动和说话</button><button class="cfgtab" data-tab="acct">账号和帮助</button></div>
+    <div class="cfgbody">
+      <div class="cfgpage" data-page="home">
+        <div class="cfgrow"><div><b id="cfgWorkTitle">上工</b><small id="cfgWorkSub"></small></div><button class="gb sm" id="cfgWork"></button></div>
+        <div class="cfgrow"><div><b>她在哪儿上工</b><small id="cfgWsSub">查询中…</small></div><button class="gb sm" id="cfgWs">换一个</button></div>
+        <div class="cfgrow" style="flex-direction:column;align-items:stretch"><div><b>作息和安静时段</b><small>她几点睡几点醒、什么时候是安静时段（不出门、不写信、不说话），改了马上生效</small></div><div class="habits" id="cfgHomeHabits"></div></div>
+        <div class="cfgrow"><div><b>她的家</b><small id="cfgHomeSub"></small></div><button class="gb sm" id="cfgHome">换一间</button></div>
+        <div class="cfgrow" style="flex-wrap:wrap"><div><b>鱼塘场景</b><small>白天浅湾、傍晚樱花池、夜里水族馆（只是领养时鱼塘的背景；她的房间在上面「她的家」里换）</small></div><div class="chips" id="cfgScene"></div></div>
+        <div class="label" style="text-align:left;margin:16px 0 8px">我的鱼塘</div>
+        <div id="cfgPond"></div>
+        <div class="cfgrow"><div><b>再领养一条</b><small>鱼见未来本鱼会再带你走一遍引导；新的鱼领养后会接班上工</small></div><button class="gb pink sm" id="cfgAdopt">再孵一条</button></div>
+      </div>
+      <div class="cfgpage" data-page="out" hidden><div class="habits" id="cfgOutBox"></div></div>
+      <div class="cfgpage" data-page="read" hidden><div class="habits" id="cfgReadBox"></div></div>
+      <div class="cfgpage" data-page="talk" hidden><div class="habits" id="cfgTalkBox"></div></div>
+      <div class="cfgpage" data-page="acct" hidden>
+        <div class="cfgrow"><div><b>她的 B站号</b><small id="cfgBiliSub">查询中…</small></div><div style="display:flex;gap:6px"><button class="gb sm" id="cfgBiliLogin">扫码登录</button><button class="gb green sm" id="cfgFollow" hidden>关注接生员</button><button class="gb plain sm" id="cfgBiliOut" hidden>退出</button></div></div>
+        <div class="cfgrow" style="flex-direction:column;align-items:stretch"><div><b>爸妈专线</b><small>填上你自己的 B站 UID，就能用 B站私信直接跟她说悄悄话，她马上回</small></div><div class="habits" id="cfgAcctHabits"></div></div>
+        <div class="cfgrow" style="flex-direction:column;align-items:stretch">
+          <div><b><img class="ic" src="./assets/icons/coin.webp" alt=""> 零花钱</b><small>她自己聊天、写日记、念新闻、出门都要花 token，花光了就歇着（不调模型）。她在 DSH 里替你干活不算她的钱。</small></div>
+          <div class="chips" id="walletModes"><button class="chip" data-mode="jar">存钱罐</button><button class="chip" data-mode="daily">每天零花钱</button><button class="chip" data-mode="free">不限</button></div>
+          <div class="walletrow" id="walletJarRow"><span id="walletLeft"></span><button class="gb sm" data-top="1000000">放 100 万</button><button class="gb sm" data-top="5000000">放 500 万</button></div>
+          <div class="walletrow" id="walletDailyRow" hidden><span>每天给</span><input id="walletDaily" type="number" min="0" step="10000"><span>token</span><button class="gb sm" id="walletDailySave">保存</button></div>
+          <small id="walletSpent"></small>
+        </div>
+        <div class="cfgrow" style="flex-direction:column;align-items:stretch">
+          <div><b>生图 API</b><small>明信片配图、表情包、换装要用（OpenAI 兼容 /v1/images/generations）。key 只存在你这台电脑，不会发回网页</small></div>
+          <div class="imgform"><input id="imgBase" placeholder="https://…/v1"><input id="imgModel" placeholder="模型，如 gpt-image-1"><input id="imgKey" type="password" placeholder="API key（留空不改）" autocomplete="off"><button class="gb sm" id="imgSave">保存</button></div><div style="display:flex;gap:8px;align-items:center;margin-top:8px"><button class="gb blue sm" id="imgTest">试拍一张</button><small style="color:var(--mute)">用这个 API 给她拍一张照片放进相册（会花一次出图的钱，约半分钟）</small></div>
+          <small id="imgState"></small>
+        </div>
+        <div class="cfgrow"><div><b>小贴士和说明书</b><small>鱼见未来本鱼会在合适的时候提醒你怎么玩；看过的都在这里，也能让它们重新出现</small></div><div style="display:flex;gap:6px"><button class="gb sm" id="cfgTips">看看</button><button class="gb plain sm" id="cfgTipsReset">重新显示</button></div></div>
+        <div class="cfgrow"><div><b>报告问题</b><small>遇到 bug、有想法？私信发给 B站上的「鱼见未来本鱼」（要先关注）</small></div><button class="gb sm" id="cfgReport">写给鱼见未来本鱼</button></div>
+        <div class="cfgnote">人设注入：上工的鱼会作为 DSH 系统提示词里的一段人设，下一条消息起生效，不用重启。<br>宿主状态和 AI 探针在 DSH 的「设置」里的「鱼社」。</div>
+      </div>
     </div>
-    <div class="cfgrow" style="flex-direction:column;align-items:stretch"><div><b>她的上网习惯</b><small>三个档位一拖就整套换：爱不爱出门、读多深、互动多少。更细的（每天点赞几个、多看哪个分区、字幕读多少…）在 DSH 里跟她说就行，比如「多看点做饭的，少点赞」，她会复述一遍，你说行才改。</small></div><div class="habits" id="habitsBox"></div><small id="habitsSum" style="color:var(--mute)"></small></div>
-    <div class="cfgrow"><div><b>她的家</b><small id="cfgHomeSub"></small></div><button class="gb sm" id="cfgHome">换一间</button></div>
-    <div class="cfgrow" style="flex-wrap:wrap"><div><b>鱼塘场景</b><small>白天浅湾、傍晚樱花池、夜里水族馆（只是领养时鱼塘的背景；她的房间在上面「她的家」里换）</small></div><div class="chips" id="cfgScene"></div></div>
-    <div class="cfgrow"><div><b>她在哪儿上工</b><small id="cfgWsSub">查询中…</small></div><button class="gb sm" id="cfgWs">换一个</button></div>
-    <div class="cfgrow"><div><b>她的 B站号</b><small id="cfgBiliSub">查询中…</small></div><div style="display:flex;gap:6px"><button class="gb sm" id="cfgBiliLogin">扫码登录</button><button class="gb green sm" id="cfgFollow" hidden>关注接生员</button><button class="gb plain sm" id="cfgBiliOut" hidden>退出</button></div></div>
-    <div class="cfgrow" style="flex-direction:column;align-items:stretch">
-      <div><b>生图 API</b><small>明信片配图、表情包、换装要用（OpenAI 兼容 /v1/images/generations）。key 只存在你这台电脑，不会发回网页</small></div>
-      <div class="imgform"><input id="imgBase" placeholder="https://…/v1"><input id="imgModel" placeholder="模型，如 gpt-image-1"><input id="imgKey" type="password" placeholder="API key（留空不改）" autocomplete="off"><button class="gb sm" id="imgSave">保存</button></div><div style="display:flex;gap:8px;align-items:center;margin-top:8px"><button class="gb blue sm" id="imgTest">试拍一张</button><small style="color:var(--mute)">用这个 API 给她拍一张照片放进相册（会花一次出图的钱，约半分钟）</small></div>
-      <small id="imgState"></small>
-    </div>
-    <div class="cfgrow"><div><b>报告问题</b><small>遇到 bug、有想法？私信发给 B站上的「鱼见未来本鱼」（要先关注）</small></div><button class="gb sm" id="cfgReport">写给鱼见未来本鱼</button></div>
-    <div class="cfgrow"><div><b>小贴士和说明书</b><small>鱼见未来本鱼会在合适的时候提醒你怎么玩；看过的都在这里，也能让它们重新出现</small></div><div style="display:flex;gap:6px"><button class="gb sm" id="cfgTips">看看</button><button class="gb plain sm" id="cfgTipsReset">重新显示</button></div></div>
-    <div class="label" style="text-align:left;margin:16px 0 8px">我的鱼塘</div>
-    <div id="cfgPond"></div>
-    <div class="cfgrow"><div><b>再领养一条</b><small>鱼见未来本鱼会再带你走一遍引导；新的鱼领养后会接班上工</small></div><button class="gb pink sm" id="cfgAdopt">再孵一条</button></div>
-    <div class="cfgnote">人设注入：上工的鱼会作为 DSH 系统提示词里的一段人设，下一条消息起生效，不用重启。<br>宿主状态和 AI 探针在 DSH 的「设置」里的「鱼社」。</div>
   </div>
   </div></div>
   <div class="modal" id="phoneM"><div class="panel bookpanel"><div class="ribbon" id="bookTitle">信箱</div><button class="gb pink sm x" id="phoneX"><svg class="xg" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/></svg></button><div class="bookbody" id="phoneBody"></div></div></div>

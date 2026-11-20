@@ -797,8 +797,16 @@ $('diaryWrite').addEventListener('click', async () => {
   renderDiary(r.diary);
 });
 
-/* ================= 设置（右上角齿轮） ================= */
-async function openCfg() {
+/* ================= 设置（右上角齿轮）＝ 配置页（F-97）：左侧五个 tab，细配置在页面上直接改 ================= */
+const CFG_TABS = ['home', 'out', 'read', 'talk', 'acct'];
+let CFG_TAB = 'home'; // 当前 tab（默认「鱼和家」；openCfg(tab) 带参数就直接落到那一页）
+function showCfgTab(tab) {
+  CFG_TAB = tab;
+  document.querySelectorAll('#cfg .cfgtab').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  document.querySelectorAll('#cfg .cfgpage').forEach((p) => { p.hidden = p.dataset.page !== tab; });
+}
+async function openCfg(tab) {
+  CFG_TAB = typeof tab === 'string' && CFG_TABS.includes(tab) ? tab : 'home'; // 只认 tab 名：齿轮的 click 事件对象传进来时不当 tab（总指挥验收时修：原来整页空白）
   await refreshPond();
   const cur = POND.current, last = homeFish();
   $('cfgWorkTitle').textContent = cur ? `${cur.name} 正在上工` : '现在没有鱼在上工';
@@ -810,8 +818,12 @@ async function openCfg() {
   $('cfgHomeSub').textContent = last ? `现在住在「${homeOf(last.home || 'cyberroom').name}」` : '领养之后才有家';
   $('cfgPond').innerHTML = POND.fish.slice().reverse().map((f) => `<div class="cfgrow fishrow ${cur?.id === f.id ? 'cur' : ''}"><img src="${ART(f.proto)}" alt=""><div style="flex:1"><b>${esc(f.name)}</b><small>${f.rarity} · ${esc(f.personality || '')} · 叫你「${esc(f.parentCall)}」 · ${esc((f.createdAt || '').slice(0, 10))}</small></div>${cur?.id === f.id ? '<span class="tier" style="background:var(--green)">上工中</span>' : `<button class="gb plain sm" data-work="${f.id}">换她上工</button>`}</div>`).join('') || '<div class="cfgnote">鱼塘还是空的。</div>';
   $('cfg').classList.add('on');
+  showCfgTab(CFG_TAB);
+  await loadHabits();
 }
-$('cfgBtn').addEventListener('click', openCfg);
+/** 手机面板里的「去设置」：带 tab 就直接落到那一页（发言、上限那些去 talk，爸妈 UID 去 acct）。 */
+const goCfg = (tab) => { $('phoneM').classList.remove('on'); if (tab === 'talk') openCfg('talk'); else if (tab === 'acct') openCfg('acct'); else openCfg(); loadImgApi(); };
+$('cfgBtn').addEventListener('click', () => openCfg());
 $('cfgHome').addEventListener('click', async () => {
   const f = homeFish(); if (!f) return;
   $('cfg').classList.remove('on');
@@ -824,6 +836,7 @@ $('cfgHome').addEventListener('click', async () => {
 });
 $('cfgX').addEventListener('click', () => $('cfg').classList.remove('on'));
 $('cfg').addEventListener('click', (e) => { if (e.target.id === 'cfg') $('cfg').classList.remove('on'); });
+$('cfgTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) showCfgTab(b.dataset.tab); });
 $('cfgAdopt').addEventListener('click', adoptAgain);
 $('cfgScene').addEventListener('click', async (e) => {
   const b = e.target.closest('[data-scene]'); if (!b) return;
@@ -1111,7 +1124,7 @@ const draftLabel = (d) => d.kind === 'comment' ? `评论 · 在《${esc(d.target
 const DM_STATUS = { pending: '等你批准', queued: '排队', sending: '正在发', sent: '', uncertain: '不确定发出去没', failed: '没发出去', rejected: '你说不发', expired: '过期没发' };
 function dmsHtml() {
   const v = MAIL.dms; if (!v || !(v.convs || []).length) return '';
-  return `<div class="drafts"><h4>${ICON('speech')} B站私信</h4>${v.convs.slice(0, 6).map((c) => `<div class="dmconv ${c.parent ? 'parent' : ''}"><b>${c.unseen ? '<span class="newtag">新</span>' : ''}${c.parent ? `${esc(LIFE?.fish?.parentCall || '爸妈')}（专线）` : esc(c.who || '网友')}</b>${c.history.slice(-4).map((x) => `<div class="dml ${x.from}"><span>${esc(x.text)}</span>${x.status && DM_STATUS[x.status] ? `<i>${DM_STATUS[x.status]}</i>` : ''}</div>`).join('')}${c.note ? `<small class="trust">${esc(c.note)}</small>` : ''}</div>`).join('')}${v.parentSet ? '' : '<small class="trust">想用 B站私信跟她说话？在设置「她的上网习惯」里填上你自己的 B站 UID（爸妈专线）。</small>'}</div>`;
+  return `<div class="drafts"><h4>${ICON('speech')} B站私信</h4>${v.convs.slice(0, 6).map((c) => `<div class="dmconv ${c.parent ? 'parent' : ''}"><b>${c.unseen ? '<span class="newtag">新</span>' : ''}${c.parent ? `${esc(LIFE?.fish?.parentCall || '爸妈')}（专线）` : esc(c.who || '网友')}</b>${c.history.slice(-4).map((x) => `<div class="dml ${x.from}"><span>${esc(x.text)}</span>${x.status && DM_STATUS[x.status] ? `<i>${DM_STATUS[x.status]}</i>` : ''}</div>`).join('')}${c.note ? `<small class="trust">${esc(c.note)}</small>` : ''}</div>`).join('')}${v.parentSet ? '' : '<small class="trust">想用 B站私信跟她说话？<button class="gb plain sm" data-gocfg="acct">在设置里填上你自己的 B站 UID（爸妈专线）</button></small>'}</div>`;
 }
 function draftsHtml() {
   const ds = MAIL.drafts || [];
@@ -1121,11 +1134,11 @@ function draftsHtml() {
     if (!qs.length) return '';
     // F-92：她说不出为什么——是睡着了、在等发言间隔、还是今天额度用完了，得让爸妈看见
     const next = MAIL.queuedWhy || (MAIL.nextAt && Date.parse(MAIL.nextAt) > Date.now() ? `下一条最早 ${hhmm(MAIL.nextAt)} 发` : '马上就会发');
-    return `<div class="drafts"><h4>${ICON('speech')} 她排队想在 B站说的话（${qs.length} 条）</h4><small class="trust">${esc(next)}</small>${qs.map((d) => `<div class="dcard"><b>${draftLabel(d)}</b>${d.target?.url ? ` <a href="${esc(d.target.url)}" target="_blank" rel="noreferrer">看视频</a>` : ''}<p style="margin:6px 0;font:14px/1.6 var(--body)">${esc(d.text)}</p><div class="dacts"><button class="gb plain sm" data-reject="${esc(d.id)}">不发这条</button></div></div>`).join('')}<small class="trust">发言间隔、每天上限、要不要先给你批准，都在设置「她的上网习惯」里。</small></div>`;
+    return `<div class="drafts"><h4>${ICON('speech')} 她排队想在 B站说的话（${qs.length} 条）</h4><small class="trust">${esc(next)}</small>${qs.map((d) => `<div class="dcard"><b>${draftLabel(d)}</b>${d.target?.url ? ` <a href="${esc(d.target.url)}" target="_blank" rel="noreferrer">看视频</a>` : ''}<p style="margin:6px 0;font:14px/1.6 var(--body)">${esc(d.text)}</p><div class="dacts"><button class="gb plain sm" data-reject="${esc(d.id)}">不发这条</button></div></div>`).join('')}<small class="trust"><button class="gb plain sm" data-gocfg="talk">发言间隔、每天上限、要不要先给你批准，都在设置里改</button></small></div>`;
   }
   if (!ds.length) return '';
   const tr = MAIL.trust;
-  return `<div class="drafts"><h4>${ICON('speech')} 她想在 B站说的话（${ds.length} 条等你批准）</h4>${tr ? `<small class="trust">她现在：${esc(tr.step)}${tr.next ? `；再原样批准 ${tr.next.need} 条就到「${esc(tr.next.name)}」` : ''}</small>` : ''}${ds.map((d) => `<div class="dcard"><b>${draftLabel(d)}</b>${d.target?.url ? ` <a href="${esc(d.target.url)}" target="_blank" rel="noreferrer">看视频</a>` : ''}<textarea data-draft="${esc(d.id)}" maxlength="${d.kind === 'comment' ? 80 : d.kind === 'dm' ? 120 : 200}">${esc(d.text)}</textarea><div class="dacts"><button class="gb plain sm" data-reject="${esc(d.id)}">不行</button><button class="gb green sm" data-approve="${esc(d.id)}">批准发出</button></div></div>`).join('')}<small class="trust">今天已发：评论 ${MAIL.today?.comment ?? 0}/${MAIL.limits?.comment ?? 0}，动态 ${MAIL.today?.post ?? 0}/${MAIL.limits?.post ?? 0}（上限在设置「她的上网习惯」里改）</small></div>`;
+  return `<div class="drafts"><h4>${ICON('speech')} 她想在 B站说的话（${ds.length} 条等你批准）</h4>${tr ? `<small class="trust">她现在：${esc(tr.step)}${tr.next ? `；再原样批准 ${tr.next.need} 条就到「${esc(tr.next.name)}」` : ''}</small>` : ''}${ds.map((d) => `<div class="dcard"><b>${draftLabel(d)}</b>${d.target?.url ? ` <a href="${esc(d.target.url)}" target="_blank" rel="noreferrer">看视频</a>` : ''}<textarea data-draft="${esc(d.id)}" maxlength="${d.kind === 'comment' ? 80 : d.kind === 'dm' ? 120 : 200}">${esc(d.text)}</textarea><div class="dacts"><button class="gb plain sm" data-reject="${esc(d.id)}">不行</button><button class="gb green sm" data-approve="${esc(d.id)}">批准发出</button></div></div>`).join('')}<small class="trust">今天已发：评论 ${MAIL.today?.comment ?? 0}/${MAIL.limits?.comment ?? 0}，动态 ${MAIL.today?.post ?? 0}/${MAIL.limits?.post ?? 0}（<button class="gb plain sm" data-gocfg="talk">上限在设置里改</button>）</small></div>`;
 }
 // 收件箱（任务 45）：B站上有人回她 / 给她点赞 / 关注她。别人的话只展示
 const INBOX_ICON = { reply: 'speech', like: 'heart', follow: 'sparkle' };
@@ -1253,6 +1266,7 @@ async function renderPhone() {
     renderLetter();
     if (r.unread || ib?.unseen || dm?.unseen) { if (r.unread) await api('/letters/read', {}); if (ib?.unseen) await api('/inbox', { seen: true }); if (dm?.unseen) await api('/dms', { seen: true }); renderMailDot(MAIL.mode === 'approve' ? MAIL.drafts.length : MAIL.queued.length); }
     body.onclick = async (e) => {
+      if (e.target.closest('[data-gocfg]')) { goCfg(e.target.closest('[data-gocfg]').dataset.gocfg); return; } // 「去设置」：发言 / 上限去 talk，爸妈 UID 去 acct
       const ap = e.target.closest('[data-approve]'), rj = e.target.closest('[data-reject]');
       if (ap || rj) {
         const id = (ap || rj).dataset.approve || (ap || rj).dataset.reject;
@@ -1274,7 +1288,7 @@ async function renderPhone() {
     const r = await api('/album');
     PHOTOS = { list: r.photos || [], i: -1 }; PC_BACK = false;
     const grid = () => {
-      if (!PHOTOS.list.length) { body.innerHTML = `<div class="needcfg">${ICON('postcard')}<div>还没有明信片。<br>她出门时会从外面寄回来。${r.configured ? '' : '<br>想让她寄照片？可以在设置里接一个画图服务（不接也行，会寄文字明信片）。'}</div>${r.configured ? '' : '<button class="gb plain sm" data-gocfg>去设置</button>'}</div>`; return; }
+      if (!PHOTOS.list.length) { body.innerHTML = `<div class="needcfg">${ICON('postcard')}<div>还没有明信片。<br>她出门时会从外面寄回来。${r.configured ? '' : '<br>想让她寄照片？可以在设置里接一个画图服务（不接也行，会寄文字明信片）。'}</div>${r.configured ? '' : '<button class="gb plain sm" data-gocfg="acct">去设置</button>'}</div>`; return; }
       body.innerHTML = `<div class="pgrid">${PHOTOS.list.map((ph, k) => `<div class="ptile${ph.url ? '' : ' pctext'}" data-ph="${k}">${pcFront(ph)}<span>${esc(ph.at.slice(5, 10))} ${esc(ph.url ? (ph.caption || '') : (String(ph.text || ph.caption || '寄来的明信片').slice(0, 8) + (String(ph.text || '').length > 8 ? '…' : '')))}</span></div>`).join('')}</div>`;
     };
     const jump = PHOTO_JUMP; PHOTO_JUMP = null;
@@ -1282,7 +1296,7 @@ async function renderPhone() {
     if (at >= 0) { PHOTOS.i = at; renderPhotoView(); } else grid();
     body.onclick = (e) => {
       if (e.target.closest('a')) return;
-      if (e.target.closest('[data-gocfg]')) { $('phoneM').classList.remove('on'); openCfg(); loadImgApi(); return; }
+      if (e.target.closest('[data-gocfg]')) { goCfg(e.target.closest('[data-gocfg]').dataset.gocfg); return; } // 相册的「去设置」→ 账号和帮助（生图 API）
       const gonb = e.target.closest('[data-gonb]'); // F-85：风景卡按了「去笔记本看」→ 打开笔记本，切到「这一趟」筛选
       if (gonb) { PC_BACK = false; PHOTOS.i = -1; GONB_TRIP = true; openApp('journal'); return; }
       const tile = e.target.closest('[data-ph]'); if (tile) { PHOTOS.i = Number(tile.dataset.ph); PC_BACK = false; renderPhotoView(); return; }
@@ -1343,24 +1357,44 @@ $('walletJarRow').addEventListener('click', async (e) => { const b = e.target.cl
 $('walletDailySave').addEventListener('click', async () => { await api('/allowance', { daily: Number($('walletDaily').value) }); toast('每天的零花钱改好了'); loadWallet(); });
 $('walletChip').addEventListener('click', () => { openCfg(); loadWallet(); loadImgApi(); });
 $('cfgBtn').addEventListener('click', loadWallet);
-// 设置：她的上网习惯（F-41 → F-59 两层配置）——上面三个档位 + 几个开关；细配置只读展开（细的跟她聊天改）
+// 设置：她的上网习惯（F-41 → F-59 两层配置）→ 配置页-1（F-97）：拉 full=1 的 page（左侧 tab 的细配置视图），页面上直接改；页面和聊天改的是同一份 habits.json
+let CFGPAGE = null; // pageView 的结果（tab / items / 用量）
+let PAGEITEMS = {}; // key → item（拼 toast 用）
 async function loadHabits() {
-  let r; try { r = await api('/habits'); } catch { return; }
-  const { habits: h, fields: F, knobs = [], fine = [] } = r;
-  const knobRows = knobs.map((k) => `<div class="hrow"><span>${esc(k.label)}</span><span class="chips knob">${k.levels.map((l) => `<button class="chip ${k.level === l ? 'on' : ''}" data-knob="${k.key}" data-level="${esc(l)}">${esc(l)}</button>`).join('')}${k.level === '自定义' ? '<button class="chip on custom" disabled>她按你的话定的</button>' : ''}</span></div>`).join('');
-  const uiRows = Object.entries(F).map(([k, f]) => {
-    let ctl = '';
-    if (f.type === 'bool') ctl = `<span class="switch ${h[k] ? 'on' : ''}" data-hk="${k}" data-bool></span>`;
-    else if (f.type === 'int') ctl = `<span class="stepper"><button data-hk="${k}" data-d="-1" ${h[k] <= f.min ? 'disabled' : ''}>−</button><b data-v="${h[k]}">${h[k] === 0 && f.zero ? f.zero : h[k]}</b><button data-hk="${k}" data-d="1" ${h[k] >= f.max ? 'disabled' : ''}>+</button></span>`;
-    else if (f.type === 'enum') ctl = `<span class="chips">${f.values.map((v) => `<button class="chip ${h[k] === v ? 'on' : ''}" data-hk="${k}" data-v="${v}">${esc(f.names[v])}</button>`).join('')}</span>`;
-    else if (f.type === 'time') ctl = `<input type="time" value="${esc(h[k])}" data-hk="${k}">`;
-    else if (f.type === 'uid') ctl = `<input type="text" class="uidin" inputmode="numeric" maxlength="20" placeholder="一串数字" title="B站 App「我的」页头像旁边的 UID" value="${esc(h[k])}" data-hk="${k}" data-uid>`;
-    return `<div class="hrow"><span>${esc(f.label)}</span>${ctl}</div>`;
-  }).join('');
-  const fineBox = fine.length ? `<details class="fine" id="fineBox" ${document.getElementById('fineBox')?.open ? 'open' : ''}><summary>细配置（只能看，想改跟她在 DSH 里说）</summary>${fine.map((g) => `<h4>${esc(g.name)}</h4>${g.items.map((it) => `<div class="frow"><span>${esc(it.label)}</span><i>${esc(it.text)}</i></div>`).join('')}`).join('')}</details>` : '';
-  $('habitsBox').innerHTML = knobRows + uiRows + fineBox;
-  const og = LIFE?.growth?.outgoing;
-  $('habitsSum').textContent = r.summary + (og ? `。她现在是「${og.label}」${og.why.length ? `（${og.why.join('、')}）` : ''}，出不出门由性格掷骰子` : '');
+  const sc = document.querySelector('#cfg .cfgbody'), top = sc?.scrollTop ?? 0;
+  let r; try { r = await api('/habits?full=1'); } catch { return; }
+  CFGPAGE = r.page || null;
+  PAGEITEMS = Object.fromEntries((CFGPAGE?.tabs || []).flatMap((t) => t.items).map((it) => [it.key, it]));
+  renderCfgHabits();
+  if (sc) { sc.scrollTop = top; requestAnimationFrame(() => { sc.scrollTop = top; }); } // 重画不跳 tab、不丢滚动位置
+}
+const showVal = (k, v) => { const it = PAGEITEMS[k]; return it?.type === 'bool' ? (v ? '开' : '关') : it?.type === 'enum' && it.names ? (it.names[v] ?? String(v)) : String(v); };
+const pageCtl = (it) => {
+  const v = it.value;
+  if (it.type === 'bool') return `<span class="switch ${v ? 'on' : ''}" data-hk="${it.key}" data-bool></span>`;
+  if (it.type === 'int' || it.type === 'num') { const st = it.type === 'num' ? (it.step || 0.1) : 1; return `<span class="stepper"><button data-hk="${it.key}" data-d="${-st}">−</button><b data-v="${v}" data-step="${st}">${v === 0 && it.zero ? it.zero : v}</b><button data-hk="${it.key}" data-d="${st}">+</button></span>`; }
+  if (it.type === 'enum') return `<span class="chips">${it.values.map((x) => `<button class="chip ${v === x ? 'on' : ''}" data-hk="${it.key}" data-v="${x}">${esc(it.names?.[x] ?? x)}</button>`).join('')}</span>`;
+  if (it.type === 'time') return `<input type="time" value="${esc(v)}" data-hk="${it.key}">`;
+  if (it.type === 'uid') return `<input type="text" class="uidin" inputmode="numeric" maxlength="20" placeholder="一串数字" title="B站 App「我的」页头像旁边的 UID" value="${esc(v)}" data-hk="${it.key}" data-uid>`;
+  return `<b>${esc(showVal(it.key, v))}</b>`;
+};
+const itemRow = (it) => `<div class="hrow"><span class="hlab">${esc(it.label)}${it.hint ? `<small>${esc(it.hint)}</small>` : ''}${it.usage ? `<em class="usage">今天 ${it.usage.used} / ${it.usage.limit}</em>` : ''}</span>${pageCtl(it)}</div>`;
+const knobRow = (kb) => `<div class="hrow"><span>${esc(kb.label)}</span><span class="chips knob">${kb.levels.map((l) => `<button class="chip ${kb.level === l ? 'on' : ''}" data-knob="${kb.key}" data-level="${esc(l)}">${esc(l)}</button>`).join('')}${kb.level === '自定义' ? '<button class="chip on custom" disabled>自定义</button>' : ''}</span></div>`;
+const pageFoot = (key) => `<div class="cfgfoot"><small>也可以在 DSH 里跟她说，让她帮你配</small><button class="gb plain sm" data-reset-tab="${key}">恢复这一页默认</button></div>`;
+function renderCfgHabits() {
+  if (!CFGPAGE) return;
+  const tab = (key) => CFGPAGE.tabs.find((t) => t.key === key);
+  const fill = (id, key, withFoot) => {
+    const t = tab(key), el = $(id); if (!t || !el) return;
+    const og = key === 'out' ? LIFE?.growth?.outgoing : null;
+    const extra = og ? `<small style="display:block;color:var(--mute);padding:0 2px 8px">她现在是「${esc(og.label)}」${og.why?.length ? `（${esc(og.why.join('、'))}）` : ''}，出不出门由性格掷骰子</small>` : '';
+    el.innerHTML = `<div class="cfgsum">${esc(t.summary)}</div>${extra}${t.knob ? knobRow(t.knob) : ''}${t.items.map(itemRow).join('')}${withFoot ? pageFoot(key) : ''}`;
+  };
+  fill('cfgOutBox', 'out', true);
+  fill('cfgReadBox', 'read', true);
+  fill('cfgTalkBox', 'talk', true);
+  const ht = tab('home'); if (ht && $('cfgHomeHabits')) $('cfgHomeHabits').innerHTML = ht.items.map(itemRow).join(''); // 作息和安静时段
+  const at = tab('acct'); if (at && $('cfgAcctHabits')) $('cfgAcctHabits').innerHTML = at.items.map(itemRow).join(''); // 爸妈 UID
 }
 // 改完重画这一块时保住设置面板的滚动位置（不然内容会跳，下一下就点错行）
 const keepScroll = async (fn) => {
@@ -1370,29 +1404,57 @@ const keepScroll = async (fn) => {
   if (sc) { sc.scrollTop = top; requestAnimationFrame(() => { sc.scrollTop = top; }); }
   return r;
 };
-const saveHabit = (patch) => keepScroll(async () => { const r = await api('/habits', patch); if (r.changed?.length) toast(`改好了：${r.changed.map((c) => c.label).join('、')}`); return r; });
+// 改一项：带上页面看到的旧值（base）。这一项刚在聊天里被改过 → 服务端一项都不写、回 stale，重画就行
+const savePage = (patch, it) => keepScroll(async () => {
+  const base = {}; for (const k of Object.keys(patch)) { const cur = it || PAGEITEMS[k]; if (cur) base[k] = cur.value; }
+  const r = await api('/habits', { page: true, base, ...patch });
+  if (r.stale?.length) { const s = r.stale[0]; toast(`这一项刚被改成了 ${showVal(s.key, s.now)}，已经刷新`); return r; }
+  const c = r.changed?.[0];
+  if (c) {
+    if (c.clamped) toast(`${c.to > c.from ? '已经到上限（硬顶）了' : '已经最低了'}：${c.label} ${showVal(c.key, c.from)} → ${showVal(c.key, c.to)}`);
+    else toast(`改好了：${c.label} ${showVal(c.key, c.from)} → ${showVal(c.key, c.to)}`);
+  }
+  return r;
+});
 const setKnob = (knob, level) => keepScroll(async () => {
   let r = await api('/habits', { knob, level });
   if (r.needsForce) { if (!confirm(`${r.error}。确定换吗？`)) return r; r = await api('/habits', { knob, level, force: true }); }
   if (r.ok) toast(r.changed?.length ? `换成「${level}」：改了 ${r.changed.length} 项` : `已经是「${level}」`);
   return r;
 });
-$('habitsBox').addEventListener('click', (e) => {
+async function resetCfgTab(tab) {
+  if (!confirm('这一页恢复默认，聊天里调过的也会回到默认，确定吗？')) return;
+  const r = await api('/habits', { reset: tab });
+  if (!r.ok) return toast(r.error || '没恢复成');
+  toast(r.changed?.length ? `恢复默认：改了 ${r.changed.length} 项` : '这一页本来就是默认');
+  await loadHabits();
+}
+$('cfg').addEventListener('click', (e) => {
   const kb = e.target.closest('[data-knob]'); if (kb && !kb.disabled) return setKnob(kb.dataset.knob, kb.dataset.level);
-  const el = e.target.closest('[data-hk]'); if (!el || el.disabled) return;
+  const rb = e.target.closest('[data-reset-tab]'); if (rb) return resetCfgTab(rb.dataset.resetTab);
+  const el = e.target.closest('[data-hk]'); if (!el || el.disabled || el.tagName === 'INPUT') return;
   const k = el.dataset.hk;
-  if (el.hasAttribute('data-bool')) return saveHabit({ [k]: !el.classList.contains('on') });
-  if (el.dataset.d) { const cur = Number(el.parentElement.querySelector('b').dataset.v); return saveHabit({ [k]: cur + Number(el.dataset.d) }); }
-  if (el.dataset.v) return saveHabit({ [k]: el.dataset.v });
+  if (el.hasAttribute('data-bool')) return savePage({ [k]: !(PAGEITEMS[k]?.value) }, PAGEITEMS[k]);
+  if (el.dataset.d) { // 步进：先看是不是已经到顶 / 到底，是就只提示、不再发
+    const b = el.parentElement.querySelector('b'); const st = Number(b?.dataset.step) || 1;
+    const nxt = Number(b?.dataset.v) + Number(el.dataset.d);
+    const it = PAGEITEMS[k];
+    if (it && Number.isFinite(it.min) && nxt < it.min - 1e-9) return toast('已经最低了');
+    if (it && Number.isFinite(it.max) && nxt > it.max + 1e-9) return toast('已经到上限（硬顶）了');
+    return savePage({ [k]: nxt }, it);
+  }
+  if (el.dataset.v) return savePage({ [k]: el.dataset.v }, PAGEITEMS[k]);
 });
-$('habitsBox').addEventListener('change', (e) => {
-  const el = e.target.closest('input[type=time][data-hk]'); if (el) return saveHabit({ [el.dataset.hk]: el.value });
+$('cfg').addEventListener('change', (e) => {
+  const t = e.target.closest('input[type=time][data-hk]'); if (t) return savePage({ [t.dataset.hk]: t.value }, PAGEITEMS[t.dataset.hk]);
   const u = e.target.closest('input[data-uid]'); if (!u) return;
   const v = u.value.replace(/\s/g, '');
   if (v && !/^\d{1,20}$/.test(v)) { toast('UID 是一串数字，在 B站 App「我的」里能看到'); return; }
-  saveHabit({ [u.dataset.hk]: v });
+  savePage({ [u.dataset.hk]: v }, PAGEITEMS[u.dataset.hk]);
 });
-$('cfgBtn').addEventListener('click', loadHabits);
+// 设置页开着时切回来 / 回到窗口 → 重拉一次（页面不陈旧）；不跳 tab，滚动位置在 loadHabits 里保住
+document.addEventListener('visibilitychange', () => { if (!document.hidden && $('cfg').classList.contains('on')) loadHabits(); });
+window.addEventListener('focus', () => { if ($('cfg').classList.contains('on')) loadHabits(); });
 
 async function loadImgApi() {
   try {

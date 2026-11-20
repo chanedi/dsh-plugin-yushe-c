@@ -46,7 +46,7 @@ import { createWorkspaces, registerWorkspaceRoutes, workspacesOf } from './works
 export const name = 'dsh-plugin-yushe'; // 包名；存档目录、路由前缀仍叫 dsh-yushe（老存档不丢）
 // 人设注入要用 systemPrompt（所有带 dsh-base 的 profile 都有）
 export const inject = ['systemPrompt'];
-export const VERSION = '0.53.0';
+export const VERSION = '0.54.0';
 export const STATUS_PATH = '/api/dsh-yushe/status';
 export const SAY_PATH = '/api/dsh-yushe/probe/say';
 export const ROAM_PATH = '/api/dsh-yushe/probe/roam';
@@ -115,7 +115,9 @@ export function apply(ctx) {
   const bili = createBili(storageDir());
   const pond = createPond(storageDir());
   const life = createLife(storageDir());
-  const habits = createHabits(storageDir(), { caps: capsOf() }); // 两层配置：工具声明的上限也并进细配置（F-59）
+  // 配置页用量（F-97）：从闸门的今天计数来；闸门在 habits 之后才建，先给个晚绑定的空函数，gate 建好再赋值
+  let gateUsage = () => ({});
+  const habits = createHabits(storageDir(), { caps: capsOf(), usage: () => gateUsage() }); // 两层配置：工具声明的上限也并进细配置（F-59）
   // F-90：睡觉窗口从设置里来（默认 00:00–07:30），改设置立刻生效
   { const h0 = habits.get(); setSleepWindow({ from: h0.sleepFrom, to: h0.sleepTo });
     habits.onChange = (h) => setSleepWindow({ from: h.sleepFrom, to: h.sleepTo }); }
@@ -128,6 +130,7 @@ export function apply(ctx) {
   const gate = createGate({ storage: storageDir(), life, habits, biliRead, biliWrite, log, gates, kinds: draftKindsOf(), senders: sendersOf(), capKeys: capKeysOf() }); // 说话工具声明的类型 / 发法 / 上限（任务 50）
   const acts = createActs({ storage: storageDir(), habits, life, gate, pond, log }); // 互动账本（任务 49）：上限、对同一个人上限、她自己关注的名单、回执 → 足迹
   gate.usePerson(acts); // G4：说话也算进「对同一个人每天上限」
+  gateUsage = () => { try { const t = gate.view().today; return { commentsPerDay: t.comment, postsPerDay: t.post }; } catch { return {}; } }; // 今天评论 / 动态数 → 配置页的「今天 x / 上限」
   const inbox = createInbox({ storage: storageDir(), life, biliRead, gate, log, gates });
   const official = createOfficial({ storage: storageDir(), biliRead, biliWrite, life, pond, version: VERSION });
   const dms = createDms({ storage: storageDir(), life, wallet, habits, biliRead, gate, log, gates });

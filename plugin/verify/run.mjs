@@ -6068,6 +6068,134 @@ section('记忆五期-3：爸妈顺口说的安排也能记下（房间 <sig> �
   { const m = Mx.emptyMemory(); const n = Mx.noteLoose(m, "周末陪你看电影", { at: isox(T0x), today: dx }); const t = Mx.tell(m, "周末陪你看电影", { at: isox(T0x + 60e3), today: dx }); ok(t.ok && t.item.id === n.item.id && (m.told || []).length === 1 && !m.told[0].loose, "记忆五期-3 补3：明说「记住」的正好是随手记着的 → 那条转正（编号不变），不另记一条", JSON.stringify(m.told)); }
 }
 
+/* ===== 配置页-1 验收（F-97，docs/任务书/配置页-1.md；总指挥写好并锁定，实现方不许改这一块）===== */
+section('配置页-1：设置页拆成左侧 tab，细配置在页面上直接改');
+{
+  const imp = (f) => import(pathToFileURL(join(plugin, f)).href);
+  const Tg = async (label, fn) => { try { const r = await fn(); ok(Array.isArray(r) ? r[0] : r, label, Array.isArray(r) ? r[1] : ''); } catch (e) { ok(false, label, `抛异常：${e?.message || e}`); } };
+  const HBg = await imp('src/shared/habits.js'), HHg = await imp('src/host/habits.js');
+  const { mkdtempSync: mkdg } = await import('node:fs'); const { tmpdir: tdg } = await import('node:os'); const { Readable: Rg } = await import('node:stream');
+  const PHASE1 = ['out', 'read', 'cap', 'speak', 'home'];
+  const allItems = (pv) => pv.tabs.flatMap((t) => t.items);
+
+  // A：pageView（纯函数）
+  await Tg('配置页-1 A1：PAGE_TABS / pageView 给 5 个 tab，顺序 home → out → read → talk → acct；出门 / 读 / 互动上限 / 说话 / 家里这几组的字段每个正好出现一次，偏好和记性不在第一期', () => {
+    const pv = HBg.pageView(HBg.defaultHabits());
+    const keys = pv.tabs.map((t) => t.key).join(',');
+    const items = allItems(pv).map((x) => x.key);
+    const want = Object.entries(HBg.HABIT_FIELDS).filter(([, f]) => PHASE1.includes(f.group)).map(([k]) => k);
+    const dup = items.filter((k, i) => items.indexOf(k) !== i);
+    const none = Object.entries(HBg.HABIT_FIELDS).filter(([, f]) => ['taste', 'memory'].includes(f.group)).map(([k]) => k).filter((k) => items.includes(k));
+    return [keys === 'home,out,read,talk,acct' && Array.isArray(HBg.PAGE_TABS) && want.every((k) => items.includes(k)) && !dup.length && !none.length, JSON.stringify({ keys, miss: want.filter((k) => !items.includes(k)), dup, none })];
+  });
+  await Tg('配置页-1 A2：字段落在对的 tab——作息 / 安静时段在 home，爸妈 UID 在 acct，要我批准 / 发言间隔 / 每天上限在 talk，在家刷在 read，梦游在 out', () => {
+    const pv = HBg.pageView(HBg.defaultHabits()); const at = (k) => pv.tabs.find((t) => t.items.some((x) => x.key === k))?.key;
+    const m = { sleepFrom: 'home', quietTo: 'home', parentMid: 'acct', speakMode: 'talk', speakEvery: 'talk', commentsPerDay: 'talk', replyToReplies: 'talk', homeEvery: 'read', autoHome: 'read', readBudget: 'read', dreamBudget: 'out', tripsPerDay: 'out', autoOut: 'out' };
+    const bad = Object.entries(m).filter(([k, t]) => at(k) !== t);
+    return [!bad.length, JSON.stringify(bad.map(([k, t]) => `${k}:${at(k)}≠${t}`))];
+  });
+  await Tg('配置页-1 A3：tab 带档位——out 管「爱不爱出门」、read 管「读多深」、talk 管「互动多少」，home / acct 没有；改过细项显示「自定义」', () => {
+    const d = HBg.defaultHabits(); const pv = HBg.pageView(d);
+    const k = Object.fromEntries(pv.tabs.map((t) => [t.key, t.knob?.key || null]));
+    const lv = pv.tabs.find((t) => t.key === 'talk').knob.level;
+    const pv2 = HBg.pageView({ ...d, commentsPerDay: 7 }); const lv2 = pv2.tabs.find((t) => t.key === 'talk').knob.level;
+    const knob = pv.tabs.find((t) => t.key === 'out').knob;
+    return [k.out === 'out' && k.read === 'depth' && k.talk === 'interact' && !k.home && !k.acct && lv === '适中' && lv2 === HBg.CUSTOM && Array.isArray(knob.levels) && knob.label, JSON.stringify({ k, lv, lv2 })];
+  });
+  await Tg('配置页-1 A4：每一项都带 label、非空的 hint、type、value；数字带 min / max（tripsPerDay 带 zero），几选一带 values / names', () => {
+    const items = allItems(HBg.pageView(HBg.defaultHabits()));
+    const bad = items.filter((x) => !x.label || typeof x.hint !== 'string' || x.hint.trim().length < 4 || !x.type || !('value' in x) || (['int', 'num'].includes(x.type) && !(Number.isFinite(x.min) && Number.isFinite(x.max))) || (x.type === 'enum' && !(Array.isArray(x.values) && x.names)));
+    const tp = items.find((x) => x.key === 'tripsPerDay');
+    return [!bad.length && tp.zero === '不限', JSON.stringify(bad.map((x) => x.key))];
+  });
+  await Tg('配置页-1 A5：最容易改错的几项说明写清楚（用户代言人建议）', () => {
+    const it = Object.fromEntries(allItems(HBg.pageView(HBg.defaultHabits())).map((x) => [x.key, x.hint]));
+    const ok1 = /0/.test(it.tripsPerDay) && it.tripsPerDay.includes('不限') && it.dreamBudget.includes('不是你的钱包') && it.readBudget.includes('不是视频个数') && it.speakEvery.includes('最快') && it.perPersonPerDay.includes('刷屏');
+    return [ok1, JSON.stringify({ t: it.tripsPerDay, d: it.dreamBudget, r: it.readBudget, s: it.speakEvery, p: it.perPersonPerDay })];
+  });
+  await Tg('配置页-1 A6：用量——传了 usage 的项带 { used, limit }（limit = 现在的上限），没传的项不带 usage', () => {
+    const d = { ...HBg.defaultHabits(), commentsPerDay: 8 };
+    const items = allItems(HBg.pageView(d, { usage: { commentsPerDay: 3, postsPerDay: 1 } }));
+    const c = items.find((x) => x.key === 'commentsPerDay'), p = items.find((x) => x.key === 'postsPerDay'), r = items.find((x) => x.key === 'repliesPerDay');
+    return [c.usage?.used === 3 && c.usage?.limit === 8 && p.usage?.used === 1 && !('usage' in r), JSON.stringify({ c: c.usage, p: p.usage, r: r.usage })];
+  });
+  await Tg('配置页-1 A7：每个 tab 有一句大白话 summary（不出现字段名）；工具声明的新上限自动进 talk', () => {
+    const { fields, knobs } = HBg.schemaWith([{ key: 'sharesPerDay', label: '每天最多转发几条', levels: { 少: 0, 适中: 1, 多: 2 }, max: 5 }]);
+    const pv = HBg.pageView(HBg.defaultHabits(fields), { fields, knobs });
+    const talk = pv.tabs.find((t) => t.key === 'talk');
+    const badSum = pv.tabs.filter((t) => typeof t.summary !== 'string' || !t.summary.trim() || /\b[a-z]+[A-Z][a-zA-Z]*\b/.test(t.summary));
+    return [talk.items.some((x) => x.key === 'sharesPerDay') && !badSum.length, JSON.stringify(pv.tabs.map((t) => t.summary))];
+  });
+
+  // B：宿主
+  const mkH = () => HHg.createHabits(mkdg(join(tdg(), 'yushe-cfg1-')));
+  await Tg('配置页-1 B1：patch(only: page) 能改细项（chat）也能改 ui 项；only: ui 照旧改不了细项；硬顶照旧（评论 99 → 30）', () => {
+    const h = mkH();
+    const r1 = h.patch({ commentsPerDay: 99, speakMode: 'approve' }, { only: 'page' });
+    const r2 = mkH().patch({ commentsPerDay: 5 }, { only: 'ui' });
+    return [h.get().commentsPerDay === 30 && h.get().speakMode === 'approve' && r1.changed.length === 2 && r2.ignored.includes('commentsPerDay'), JSON.stringify({ r1: r1.changed, r2 })];
+  });
+  await Tg('配置页-1 B2：view({ full: true }) 带 page.tabs（含用量）；view() 照旧老样子（fields / knobs / fine）', () => {
+    const h = HHg.createHabits(mkdg(join(tdg(), 'yushe-cfg1-')), { usage: () => ({ commentsPerDay: 2 }) });
+    const v = h.view({ full: true }), v0 = h.view();
+    const c = v.page?.tabs?.flatMap((t) => t.items).find((x) => x.key === 'commentsPerDay');
+    return [Array.isArray(v.page?.tabs) && v.page.tabs.length === 5 && c?.usage?.used === 2 && v0.fields && v0.knobs && v0.fine && !v0.page, JSON.stringify({ c })];
+  });
+  await Tg('配置页-1 B3：resetTab 只把这一个 tab 的项恢复默认，别的 tab 不动；不认识的 tab 不动', () => {
+    const h = mkH(); h.patch({ commentsPerDay: 3, speakEvery: '240', tripsPerDay: 5 }, { only: 'page' });
+    const r = h.resetTab('talk'); const g = h.get(); const bad = h.resetTab('nope');
+    return [r.ok && g.commentsPerDay === 12 && g.speakEvery === '60' && g.tripsPerDay === 5 && r.changed.length === 2 && bad.ok === false, JSON.stringify({ r, g: { c: g.commentsPerDay, s: g.speakEvery, t: g.tripsPerDay } })];
+  });
+  await Tg('配置页-1 B4：页面改之前带上它看到的值（base）；这一项已经被聊天改过 → 不写，回 stale（告诉现在是多少）；对得上才写', () => {
+    const h = mkH(); h.patch({ commentsPerDay: 4 }, { only: 'chat' });
+    const r1 = h.pagePatch({ commentsPerDay: 11 }, { base: { commentsPerDay: 12 } });
+    const mid = h.get().commentsPerDay;
+    const r2 = h.pagePatch({ commentsPerDay: 5 }, { base: { commentsPerDay: 4 } });
+    return [r1.ok === false && r1.stale?.[0]?.key === 'commentsPerDay' && r1.stale[0].now === 4 && mid === 4 && r2.ok && h.get().commentsPerDay === 5, JSON.stringify({ r1, mid, r2: r2.ok })];
+  });
+  await Tg('配置页-1 B5：路由——GET ?full=1 带 page；POST { page: true, base, … } 改细项；POST { reset: tab }；不带 page 的老请求照旧只认 ui 项；index.js 把闸门的今天计数接成 usage', async () => {
+    const routes = {}; const scope = { effect: (fn) => fn(), webServer: { register: (r) => { routes[r.path] = r.handler; } } };
+    const h = HHg.createHabits(mkdg(join(tdg(), 'yushe-cfg1-')), { usage: () => ({ commentsPerDay: 1 }) });
+    let last = null; const writeJson = (res, code, body) => { last = { code, body }; };
+    HHg.registerHabitsRoutes({ scope, habits: h, isLoopbackRequest: () => true, writeJson });
+    const call = async (method, url, body) => { const req = Rg.from(body ? [Buffer.from(JSON.stringify(body))] : []); req.method = method; req.url = url; await routes[HHg.HABITS_PATH](req, {}); return last; };
+    const g = await call('GET', '/api/dsh-yushe/habits?full=1');
+    const p = await call('POST', '/api/dsh-yushe/habits', { page: true, base: { commentsPerDay: 12 }, commentsPerDay: 6 });
+    const old = await call('POST', '/api/dsh-yushe/habits', { repliesPerDay: 2 });
+    const rs = await call('POST', '/api/dsh-yushe/habits', { reset: 'talk' });
+    const src = read('src/host/index.js');
+    return [Array.isArray(g.body.page?.tabs) && p.body.ok && old.body.ignored?.includes('repliesPerDay') && rs.body.ok && h.get().commentsPerDay === 12 && /usage/.test(src.slice(src.indexOf('createHabits('), src.indexOf('createHabits(') + 400)), JSON.stringify({ g: Boolean(g.body.page), p: p.body.ok, old: old.body.ignored, rs: rs.body.ok, c: h.get().commentsPerDay })];
+  });
+
+  // C：页面（源码）
+  await Tg('配置页-1 C1：设置页左侧 5 个 tab（data-tab = home / out / read / talk / acct，按这个顺序）；原来的控件编号都还在', () => {
+    const html = read('src/game/index.html');
+    const tabs = [...html.matchAll(/data-tab="([a-z]+)"/g)].map((m) => m[1]);
+    const order = ['home', 'out', 'read', 'talk', 'acct'];
+    const seq = order.every((k, i) => tabs.indexOf(k) >= 0 && (i === 0 || tabs.indexOf(k) > tabs.indexOf(order[i - 1])));
+    const ids = ['cfg', 'cfgX', 'cfgWork', 'cfgPond', 'cfgScene', 'cfgHome', 'walletModes'].filter((id) => !html.includes(`id="${id}"`));
+    return [seq && !ids.length, JSON.stringify({ tabs, missing: ids })];
+  });
+  await Tg('配置页-1 C2：页面拉 full=1、改细项带 page: true 和 base、处理 stale；只读的「细配置（只能看…）」没了；每页底部「也可以在 DSH 里跟她说」和「恢复这一页默认」（确认框写明聊天里调过的也会回到默认）', () => {
+    const s = read('src/game/main.js');
+    return [s.includes('full=1') && /page:\s*true/.test(s) && /base/.test(s) && /stale/.test(s) && !s.includes('细配置（只能看') && s.includes('也可以在 DSH 里跟她说') && s.includes('恢复这一页默认') && s.includes('聊天里调过的也会回到默认'), ''];
+  });
+  await Tg('配置页-1 C3：右侧面板「上限在设置里改」直接打开设置到「互动和说话」；设置页开着时回到窗口会刷新一下', () => {
+    const s = read('src/game/main.js');
+    return [/openCfg\(\s*'talk'\s*\)/.test(s) && /visibilitychange|addEventListener\(\s*'focus'/.test(s), ''];
+  });
+}
+/* ===== 配置页-1 验收结束 ===== */
+
+/* 配置页-1 验收补充（总指挥验收时加）：齿轮的点击事件别被当成 tab 名（原来整页空白）；恢复默认不动「要我批准」 */
+{
+  const sx = read("src/game/main.js");
+  ok(!/addEventListener\(\s*click\s*,\s*openCfg\s*\)/.test(sx) && /CFG_TABS\.includes\(tab\)/.test(sx), "配置页-1 补1：齿轮按钮不把 click 事件当 tab 名传给 openCfg（原来设置页打开一片空白）；不带 tab 打开回「鱼和家」");
+  const HHx = await import(pathToFileURL(join(plugin, "src/host/habits.js")).href); const { mkdtempSync: mkx } = await import("node:fs"); const { tmpdir: tdx } = await import("node:os");
+  const hx = HHx.createHabits(mkx(join(tdx(), "yushe-cfg1x-"))); hx.patch({ speakMode: "approve", commentsPerDay: 3 }, { only: "page" }); hx.resetTab("talk");
+  ok(hx.get().speakMode === "approve" && hx.get().commentsPerDay === 12, "配置页-1 补2：「互动和说话」恢复默认时「要我批准」留在原地，上限照旧回默认", JSON.stringify(hx.get().speakMode));
+}
+
 /* ---------- 4. 脱敏 ---------- */
 section('脱敏（plugin/ tools/）');
 const walk = (d) => readdirSync(d).flatMap((n) => { const p = join(d, n); return statSync(p).isDirectory() ? (n === 'node_modules' ? [] : walk(p)) : [p]; });
