@@ -6196,6 +6196,40 @@ section('配置页-1：设置页拆成左侧 tab，细配置在页面上直接�
   ok(hx.get().speakMode === "approve" && hx.get().commentsPerDay === 12, "配置页-1 补2：「互动和说话」恢复默认时「要我批准」留在原地，上限照旧回默认", JSON.stringify(hx.get().speakMode));
 }
 
+/* F-98：设置里改她怎么叫爸妈 */
+section('F-98：设置里改她怎么叫爸妈');
+{
+  const cp = PD.createPond(mkdtempSync(join(tmpdir(), 'yushe-call-')));
+  const cf = cp.adopt({ ...goodSpec, parentCall: '妈妈' });
+  ok(PD.rerenderPersona(cf, '妈妈') === cf.personaText, 'F-98：同一个称呼重渲出来的人设和领养时一字不差（重渲是确定性的）');
+  const r1 = cp.setParentCall(cf.id, '老大');
+  const nf = cp.list().fish.find((x) => x.id === cf.id);
+  ok(r1.from === '妈妈' && nf.parentCall === '老大' && nf.personaText.includes('老大') && !nf.personaText.includes('妈妈'), 'F-98：改成「老大」后存档和人设都换了，人设里不再有「妈妈」');
+  const bad = ['', '   ', '一二三四五六七八'.slice(0, 8)].map((v) => { try { cp.setParentCall(cf.id, v); return cp.list().fish.find((x) => x.id === cf.id).parentCall; } catch { return '拒'; } });
+  ok(bad[0] === '拒' && bad[1] === '拒' && bad[2].length <= 6, 'F-98：空的不收；太长的截到 6 个字（和领养一样）', JSON.stringify(bad));
+  const old = { ...cf, talentIds: [], personaText: '你叫你的家长「妈妈」。妈妈很爱你。', parentCall: '妈妈' };
+  ok(PD.rerenderPersona(old, '爸爸') === '你叫你的家长「爸爸」。爸爸很爱你。', 'F-98：缺料的老鱼只把称呼换掉');
+  const rr = read('src/host/room-routes.js'), gm = read('src/game/main.js'), gh = read('src/game/index.html');
+  ok(/CALL_PATH = '\/api\/dsh-yushe\/parent-call'/.test(rr) && rr.includes('setParentCall(') && rr.includes('改口叫') && gh.includes('id="cfgCall"') && gm.includes("api('/parent-call'"), 'F-98：路由（回环、记一笔改口）+ 设置「鱼和家」里的「她叫你什么」');
+}
+
+/* issue #3（公开仓库）：出门卡在 roaming（逛的任务随 DSH 重启丢了）要有兜底，不能永远「出门冲浪了」 */
+section('出门卡在 roaming 的兜底（公开仓库 issue #3）');
+{
+  const LEr = await import(pathToFileURL(join(plugin, 'src/host/life-engine.js')).href);
+  const { mkdtempSync: mkr, mkdirSync: mdr, writeFileSync: wfr } = await import('node:fs'); const { tmpdir: tdr } = await import('node:os');
+  const dr = mkr(join(tdr(), 'yushe-roam-')); const Lr = LEr.createLife(dr); const N = Date.now();
+  const seedr = (id, trip) => { mdr(join(dr, 'life'), { recursive: true }); wfr(join(dr, 'life', `${id}.json`), JSON.stringify({ version: LEr.LIFE_VERSION, fishId: id, mood: 60, energy: 80, bornAt: N - 3 * 86400e3, lastTickAt: N, lastVisitAt: N, events: [], chat: [], diary: [], album: [], journal: [], work: {}, letters: [], trip })); return { id, parentCall: '妈妈', createdAt: new Date(N - 3 * 86400e3).toISOString() }; };
+  const stuck = seedr('roam-old', { id: 'Tx', startedAt: N - 2 * 3600e3, state: 'roaming', cards: [], returnAt: N + 2 * 3600e3 });
+  ok(LEr.ROAM_STUCK_MS === 3600e3 && !Lr.isOut(stuck), 'issue #3：roaming 超过 1 小时（逛的任务丢了）不再算在外面');
+  const s1 = Lr.state(stuck);
+  ok(s1.trip === null && s1.events.some((e) => e.kind === 'back' && e.text.includes('没带回什么')), 'issue #3：卡住的 roaming 结算成「出门转了一圈，没带回什么就回家了」，trip 清空', JSON.stringify(s1.trip));
+  const fresh = seedr('roam-new', { id: 'Ty', startedAt: N - 10 * 60e3, state: 'roaming', cards: [], returnAt: N + 4 * 3600e3 });
+  ok(Lr.isOut(fresh) && Lr.state(fresh).trip?.state === 'roaming', 'issue #3：刚出门 10 分钟的 roaming 照旧在外面，不被误收');
+  const legacy = seedr('roam-legacy', { id: 'Tz', state: 'roaming', cards: [], returnAt: N - 60e3 });
+  ok(Lr.state(legacy).trip === null, 'issue #3：没有 startedAt 的老存档按 returnAt 往前推 4 小时算，同样能收');
+}
+
 /* ---------- 4. 脱敏 ---------- */
 section('脱敏（plugin/ tools/）');
 const walk = (d) => readdirSync(d).flatMap((n) => { const p = join(d, n); return statSync(p).isDirectory() ? (n === 'node_modules' ? [] : walk(p)) : [p]; });

@@ -36,6 +36,7 @@ export const NAP_PATH = '/api/dsh-yushe/nap';
 export const JOURNAL_PATH = '/api/dsh-yushe/journal';
 export const PHOTO_TEST_PATH = '/api/dsh-yushe/photo-test';
 export const HOME_PATH = '/api/dsh-yushe/home';
+export const CALL_PATH = '/api/dsh-yushe/parent-call'; // F-98：设置里改她怎么叫爸妈
 
 /** 今天的日程（规则）：起床 / 上工 / 冲浪 / 写日记 / 睡觉。冲浪时段是给 M4 自动畅游预留的。 */
 export function scheduleOf(fish, working, now = nowDate()) {
@@ -169,6 +170,19 @@ export function registerRoomRoutes({ ctx, scope, pond, life, wallet, letters, tr
     try { const nf = pond.setHome(f.id, b?.home); life.record(nf, 'home', `搬进了新家：${homeOf(nf.home).name}`, { mood: 3, visit: true }); writeJson(res, 200, { ok: true, home: nf.home }); }
     catch (e) { writeJson(res, 200, { ok: false, error: String(e?.message || e) }); }
   }, 'home route');
+
+  // 改她怎么叫爸妈（F-98）：{parentCall}。人设跟着重渲；记一笔「改口」让她自己也知道（以前的话不改）
+  reg(CALL_PATH, async (req, res) => {
+    if (!guard(req, res, 'POST')) return;
+    const f = homeFish();
+    if (!f) return writeJson(res, 200, { ok: false, error: '还没有鱼' });
+    const b = await readJsonBody(req);
+    try {
+      const { fish: nf, from } = pond.setParentCall(f.id, b?.parentCall);
+      if (nf.parentCall !== from) life.record(nf, 'call', `以后改口叫「${nf.parentCall}」啦（以前叫「${from}」）`, { mood: 1, visit: true });
+      writeJson(res, 200, { ok: true, parentCall: nf.parentCall, from });
+    } catch (e) { writeJson(res, 200, { ok: false, error: String(e?.message || e) }); }
+  }, 'parent call route');
 
   // 设置里「试拍一张」：用当前配的生图 API 给她拍一张，放进相册（验证 API 能用）
   reg(PHOTO_TEST_PATH, async (req, res) => {

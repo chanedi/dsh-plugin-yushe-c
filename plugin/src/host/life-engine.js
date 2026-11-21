@@ -158,6 +158,8 @@ export const NAP_PER_HOUR = 30;
 export const EXHAUST_FROM = 15, EXHAUST_UNTIL = 40, EXHAUST_PER_HOUR = 10;
 /** 出门 / 回家各扣多少精力（原来 −15 / −8，一天两趟 −46，占掉半管血）。 */
 export const TRIP_OUT_ENERGY = -10, TRIP_BACK_ENERGY = -5;
+/** 出门第一段（roaming：她在外面逛、还没交游记）最多这么久。逛的任务只在内存里，DSH 一重启就没了，不兜底就永远「出门冲浪了」（公开仓库 issue #3）。正常几分钟到十几分钟就交了。 */
+export const ROAM_STUCK_MS = 60 * 60_000;
 /** 精力见底（心情二期-1a C）：醒着精力 < 20 → 烦躁一次，3 小时内不重复；不往「今天」里写事件。 */
 const DRAINED_AT = 20, DRAINED_EVERY_MS = 3 * 3600_000;
 /** 无聊（心情二期-1a C）：醒着 24 小时没新鲜事 → 无聊一次，一天一次；lastFreshAt 缺失（老存档）从这次结算的起点算，不一上来就无聊。 */
@@ -240,7 +242,13 @@ export function settle(state, now = nowMs(), call = '爸妈') { // call：她怎
  */
 export function tickTrip(fish, s, now) {
   const tr = s.trip;
-  if (!tr || tr.state === 'roaming') return null;
+  if (!tr) return null;
+  if (tr.state === 'roaming') {
+    // issue #3：逛的任务丢了（重启 / 进程中断）就再也等不到游记——超过 ROAM_STUCK_MS 按「没带回什么」回家，和出门失败一个结局
+    const start = Number.isFinite(tr.startedAt) ? tr.startedAt : (tr.returnAt || 0) - 4 * 3600_000;
+    if (now < start + ROAM_STUCK_MS) return null;
+    Object.assign(tr, { state: 'planned', failed: true, cards: [], souvenirs: [], returnAt: Math.min(tr.returnAt || now, now) });
+  }
   const due = cardsDue(tr.cards, now);
   for (const c of due) {
     c.sent = true;
@@ -559,7 +567,8 @@ export function createLife(dir) {
   /** 出门：记下这趟的 job id；job 还在跑就算「出门」。 */
   api.setOut = (fish, jobId) => { if (jobId) outing.set(fish.id, jobId); else outing.delete(fish.id); };
   // 出门 = 有一趟还没回家（规则定的 returnAt 之前），或者 headless 还在跑
-  api.isOut = (fish) => { const tr = load(fish).trip; if (tr && (tr.state === 'roaming' || nowMs() < (tr.returnAt || 0))) return true; const id = outing.get(fish.id); if (!id) return false; const st = roamStatus(id); if (st?.state === 'running') return true; outing.delete(fish.id); return false; };
+  // issue #3：卡住超过 ROAM_STUCK_MS 的 roaming 不再算「在外面」
+  api.isOut = (fish) => { const tr = load(fish).trip; if (tr && ((tr.state === 'roaming' && nowMs() < (Number.isFinite(tr.startedAt) ? tr.startedAt : (tr.returnAt || 0) - 4 * 3600_000) + ROAM_STUCK_MS) || (tr.state !== 'roaming' && nowMs() < (tr.returnAt || 0)))) return true; const id = outing.get(fish.id); if (!id) return false; const st = roamStatus(id); if (st?.state === 'running') return true; outing.delete(fish.id); return false; };
   /** 在家正刷着 B站（F-87）：这一轮里不出门（trips.autoTick 用）。 */
   api.isBrowsing = (fish) => { const s = load(fish); return Boolean(s.browse && s.browse.until > nowMs()); };
   /** 她现在在做什么（三态 + 正在干的事）。busy 来自钱包（哪个 AI 调用正在跑）。 */

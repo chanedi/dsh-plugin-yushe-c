@@ -815,6 +815,7 @@ async function openCfg(tab) {
   $('cfgWork').dataset.act = cur ? 'rest' : (last ? 'work' : 'adopt');
   const pref = pondPref();
   $('cfgScene').innerHTML = [['auto', '自动（随时间）'], ...['lagoon', 'sakura', 'aquarium'].map((k) => [k, BACKDROPS[k].name])].map(([k, n]) => `<button class="chip ${pref === k ? 'on' : ''}" data-scene="${k}">${n}</button>`).join('');
+  renderCallRow(last);
   $('cfgHomeSub').textContent = last ? `现在住在「${homeOf(last.home || 'cyberroom').name}」` : '领养之后才有家';
   $('cfgPond').innerHTML = POND.fish.slice().reverse().map((f) => `<div class="cfgrow fishrow ${cur?.id === f.id ? 'cur' : ''}"><img src="${ART(f.proto)}" alt=""><div style="flex:1"><b>${esc(f.name)}</b><small>${f.rarity} · ${esc(f.personality || '')} · 叫你「${esc(f.parentCall)}」 · ${esc((f.createdAt || '').slice(0, 10))}</small></div>${cur?.id === f.id ? '<span class="tier" style="background:var(--green)">上工中</span>' : `<button class="gb plain sm" data-work="${f.id}">换她上工</button>`}</div>`).join('') || '<div class="cfgnote">鱼塘还是空的。</div>';
   $('cfg').classList.add('on');
@@ -824,6 +825,29 @@ async function openCfg(tab) {
 /** 手机面板里的「去设置」：带 tab 就直接落到那一页（发言、上限那些去 talk，爸妈 UID 去 acct）。 */
 const goCfg = (tab) => { $('phoneM').classList.remove('on'); if (tab === 'talk') openCfg('talk'); else if (tab === 'acct') openCfg('acct'); else openCfg(); loadImgApi(); };
 $('cfgBtn').addEventListener('click', () => openCfg());
+/* 她叫你什么（F-98）：妈妈 / 爸爸 / 自己写（≤ 6 字，和领养时一样的规矩） */
+const CALL_PRESETS = ['妈妈', '爸爸'];
+function renderCallRow(f) {
+  const box = $('cfgCall'); if (!box) return;
+  if (!f) { box.innerHTML = '<span class="cfgnote">领养之后才能改</span>'; return; }
+  const cur = f.parentCall || '妈妈';
+  const chips = [...new Set([...CALL_PRESETS, cur])].map((c) => `<button class="chip ${c === cur ? 'on' : ''}" data-call="${esc(c)}">${esc(c)}</button>`).join('');
+  box.innerHTML = `${chips}<input type="text" id="cfgCallIn" maxlength="6" placeholder="自己写，比如 老大" style="width:150px"><button class="gb sm" id="cfgCallSave">就叫这个</button>`;
+}
+async function saveCall(v) {
+  v = String(v || '').trim();
+  if (!v) return toast('先写一个称呼');
+  const r = await api('/parent-call', { parentCall: v });
+  if (!r.ok) return toast(r.error || '没改成');
+  S.call = r.parentCall;
+  toast(r.from === r.parentCall ? `她本来就叫你「${r.parentCall}」` : `好，以后她叫你「${r.parentCall}」`);
+  await refreshPond(); renderCallRow(homeFish()); openCfg('home');
+}
+$('cfgCall')?.addEventListener('click', (e) => {
+  const c = e.target.closest('[data-call]'); if (c) return saveCall(c.dataset.call);
+  if (e.target.id === 'cfgCallSave') return saveCall($('cfgCallIn').value);
+});
+$('cfgCall')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'cfgCallIn') saveCall(e.target.value); });
 $('cfgHome').addEventListener('click', async () => {
   const f = homeFish(); if (!f) return;
   $('cfg').classList.remove('on');

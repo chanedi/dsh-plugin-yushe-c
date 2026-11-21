@@ -59,6 +59,22 @@ export function createPond(dir) {
       write(cache);
       return cache.fish.find((f) => f.id === id);
     },
+    /**
+     * 改她怎么叫爸妈（F-98）：和领养时同一套校验（≤ 6 字、checkName），人设里的称呼跟着重新渲染，DSH 下一条消息起就用新叫法。
+     * 以前说过的话（聊天、日记、记忆）不改，是那时候的事。返回 { fish, from }。
+     */
+    setParentCall(id, call) {
+      const f = cache.fish.find((x) => x.id === id);
+      if (!f) throw new Error('没有这条鱼');
+      const v = cleanLine(call, 6);
+      if (!v) throw new Error('称呼不能是空的');
+      const err = checkName(v); if (err) throw new Error(`称呼：${err}`);
+      const from = f.parentCall || '妈妈';
+      if (v === from) return { fish: f, from };
+      cache = { ...cache, fish: cache.fish.map((x) => (x.id === id ? { ...x, parentCall: v, personaText: rerenderPersona(x, v) } : x)) };
+      write(cache);
+      return { fish: cache.fish.find((x) => x.id === id), from };
+    },
     /** 校验 + 渲染 + 落盘；返回存好的鱼。 */
     adopt(spec) {
       const fish = buildFish(spec, { firstEgg: cache.fish.length === 0 });
@@ -67,6 +83,16 @@ export function createPond(dir) {
       return fish;
     },
   };
+}
+
+/** 换了称呼后重新渲染人设：领养时的料都存着就整段重渲（同一套 renderPersonaV2，确定性的）；老鱼缺料就只把称呼换掉。 */
+export function rerenderPersona(f, call) {
+  const talents = (f.talentIds || []).map((id) => TALENTS[id]).filter(Boolean);
+  if (PROTOS[f.proto] && f.story && f.pts && talents.length >= 2) {
+    try { return renderPersonaV2({ proto: f.proto, pts: f.pts, story: f.story, parentCall: call, name: f.name, self: f.self, tics: f.tics || [], ban: f.ban || [], talents, date: String(f.createdAt || '').slice(0, 10) }); } catch { /* 缺料就退回替换 */ }
+  }
+  const old = f.parentCall || '妈妈';
+  return String(f.personaText || '').split(old).join(call);
 }
 
 /** 老存档迁移（F-96）：单个 workspace（或 null）→ workspaces 列表；只在内存里改，下次写盘时落下。 */
