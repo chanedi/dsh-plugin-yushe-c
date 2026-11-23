@@ -9,8 +9,7 @@
  *
  * 规矩（见仓库根 AGENTS.md）：路由带 dsh-yushe 前缀、只收回环请求；注册都套 ctx.effect，热重载不重复注册。
  */
-import { initWebsites, registerWebsiteRoutes } from './websites/index.js';
-import { NEWS_SOURCES } from './sources.js';
+import { createWebsites } from '../../extensions/websites/host.js';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -113,7 +112,7 @@ export function apply(ctx) {
   const log = (() => { try { return ctx.logger?.('dsh-yushe'); } catch { return undefined; } })();
 
   initClock(storageDir());
-  initWebsites(storageDir(), NEWS_SOURCES);
+  const registerWebsites = createWebsites(storageDir());
   const wallet = createWallet(ctx, storageDir());
   const bili = createBili(storageDir());
   const pond = createPond(storageDir());
@@ -193,7 +192,7 @@ export function apply(ctx) {
     registerRoomRoutes({ ctx, scope, pond, life, wallet, letters, trips, planner, storage: storageDir(), isLoopbackRequest, writeJson });
     registerBagRoutes({ scope, pond, life, isLoopbackRequest, writeJson });
     registerPhotoRoute({ scope, storage: storageDir(), isLoopbackRequest, writeJson });
-    registerWebsiteRoutes({ scope, isLoopbackRequest, writeJson });
+    registerWebsites({ scope, isLoopbackRequest, writeJson });
     registerHabitsRoutes({ scope, habits, isLoopbackRequest, writeJson });
     registerGateRoutes({ scope, pond, gate, isLoopbackRequest, writeJson });
     registerInboxRoutes({ scope, pond, inbox, isLoopbackRequest, writeJson });

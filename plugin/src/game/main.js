@@ -1,4 +1,4 @@
-import { mountWebsites } from './websites.js';
+import { mountWebsites } from '../../extensions/websites/client.js';
 // 鱼社 · 游戏（插件版，M2 出生）—— 跑在 DSH 浮层的 iframe 里：/api/dsh-yushe/game/
 // 流程：引导（ink 剧本，本鱼问爸爸/妈妈）→ 撒谷子 → 鱼卵 → 揭晓 → 挑一颗 → 捏性格（200 点 + 身世）→ 起名
 //      → 破壳（AI 现写第一句，头像换成宝宝）→ 领养落盘（宿主渲染人设并注入）→ 本鱼告别 → 上工
@@ -799,7 +799,7 @@ $('diaryWrite').addEventListener('click', async () => {
 });
 
 /* ================= 设置（右上角齿轮）＝ 配置页（F-97）：左侧五个 tab，细配置在页面上直接改 ================= */
-const CFG_TABS = ['home', 'out', 'read', 'talk', 'acct', 'sites'];
+const CFG_TABS = ['home', 'out', 'read', 'talk', 'acct'];
 mountWebsites({ api, esc });
 let CFG_TAB = 'home'; // 当前 tab（默认「鱼和家」；openCfg(tab) 带参数就直接落到那一页）
 function showCfgTab(tab) {
