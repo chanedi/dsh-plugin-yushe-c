@@ -9,6 +9,8 @@
  *
  * 外部文本一律当数据：只取标题 / 链接 / 少量元数据，去控制字符、截断长度，绝不把正文当指令。
  */
+import { websiteSources } from './websites/index.js';
+import { readWebsite } from './websites/read.js';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -73,13 +75,13 @@ export function pickSources(seed, k = 3, prefer = {}) {
   let h = 2166136261;
   for (const ch of String(seed)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
   // prefer：{来源类别: 0–1}，她越爱的类别越容易被挑中（弱影响、强随机，跟旅行青蛙的目的地权重一个意思）
-  return NEWS_SOURCES.map((s, i) => ({ s, w: (Math.imul(h ^ (i + 1) * 2654435761, 16777619) >>> 0) / (1 + 3 * (prefer[s.kind] || 0)) }))
+  return (websiteSources(NEWS_SOURCES).filter(s => s.enabled !== false)).map((s, i) => ({ s, w: (Math.imul(h ^ (i + 1) * 2654435761, 16777619) >>> 0) / (1 + 3 * (prefer[s.kind] || 0)) }))
     .sort((a, b) => a.w - b.w).slice(0, k).map((x) => x.s);
 }
 
 export async function fetchNews(sources, perSource = 6) {
   const out = await Promise.all(sources.map(async (s) => {
-    try { return { source: s.name, kind: s.kind, items: parseFeed(await getText(s.url), perSource) }; }
+    try { const raw = await readWebsite(s.url); const items = s.type === 'page' ? [{ title: clean(raw.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || s.name), url: s.url, summary: summaryOf(raw.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, ''), 1500) }] : parseFeed(raw, perSource); return { source: s.name, kind: s.kind, items }; }
     catch (e) { return { source: s.name, kind: s.kind, items: [], error: String(e?.message || e).slice(0, 80) }; }
   }));
   return out;
